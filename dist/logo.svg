@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Gold Metallic Gradient -->
+    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5ECC6" />
+      <stop offset="30%" stop-color="#D4AF37" />
+      <stop offset="70%" stop-color="#AA7C11" />
+      <stop offset="100%" stop-color="#E1C556" />
+    </linearGradient>
+    
+    <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D4AF37" />
+      <stop offset="50%" stop-color="#F5ECC6" />
+      <stop offset="100%" stop-color="#8C6C18" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background Circle -->
+  <circle cx="250" cy="250" r="240" fill="#07080A" stroke="url(#ringGradient)" stroke-width="8" />
+
+  <!-- Crown Icon -->
+  <g transform="translate(250, 140) scale(1.15)">
+    <!-- Base band -->
+    <path d="M-30,12 L30,12 L28,18 L-28,18 Z" fill="url(#goldGradient)" />
+    <!-- Main crown body -->
+    <path d="M-32,9 L-42,-22 L-18,-5 L0,-32 L18,-5 L42,-22 L32,9 Z" fill="url(#goldGradient)" />
+    <!-- Crown circles tips -->
+    <circle cx="-42" cy="-24" r="4.5" fill="url(#goldGradient)" />
+    <circle cx="0" cy="-34" r="5" fill="url(#goldGradient)" />
+    <circle cx="42" cy="-24" r="4.5" fill="url(#goldGradient)" />
+  </g>
+
+  <!-- MR CLEAN Text -->
+  <text x="250" y="225" font-family="'Playfair Display', 'Georgia', serif" font-weight="900" font-size="44" fill="url(#goldGradient)" text-anchor="middle" letter-spacing="4">MR</text>
+  <text x="250" y="285" font-family="'Playfair Display', 'Georgia', serif" font-weight="900" font-size="64" fill="url(#goldGradient)" text-anchor="middle" letter-spacing="6">CLEAN</text>
+
+  <!-- Gold Divider Line -->
+  <path d="M 140 310 Q 250 316 360 310 Q 250 313 140 310 Z" fill="url(#goldGradient)" />
+
+  <!-- SNEAKERS Text -->
+  <text x="254" y="348" font-family="'Outfit', 'Inter', 'Arial', sans-serif" font-weight="800" font-size="24" fill="#FFFFFF" text-anchor="middle" letter-spacing="14">SNEAKERS</text>
+</svg>
