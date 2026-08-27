@@ -1,8 +1,9 @@
 import { supabase, isDemoMode } from '../lib/supabaseClient';
-import { Order, OrderItem, OrderStatus, BusinessSettings } from '../types/database';
+import { Order, OrderItem, OrderStatus, BusinessSettings, Customer } from '../types/database';
 
 const LOCAL_STORAGE_ORDERS_KEY = 'mrclean_orders_db_v1';
 const LOCAL_STORAGE_SETTINGS_KEY = 'mrclean_settings_db_v1';
+const LOCAL_STORAGE_CUSTOMERS_KEY = 'mrclean_customers_db_v1';
 
 // Datos iniciales de demostración en caso de no tener Supabase configurado aún
 const INITIAL_DEMO_ORDERS: Order[] = [
@@ -17,7 +18,7 @@ const INITIAL_DEMO_ORDERS: Order[] = [
     status: 'in_progress',
     payment_method: 'transfer',
     payment_status: 'paid',
-    total_amount: 350.00,
+    total_amount: 400.00,
     notes: 'Tratamiento especial para gamuza negra. Cuidado extremo con el logo.',
     ready_notification_sent: false,
     delivered_notification_sent: false,
@@ -27,8 +28,8 @@ const INITIAL_DEMO_ORDERS: Order[] = [
       {
         id: 'item-1',
         brand_model: 'Nike Air Force 1 Low White',
-        service_name: 'Limpieza Profunda + Blanqueamiento de Suela',
-        price: 200.00,
+        service_name: 'Limpieza Detallada + Blanqueamiento de suela',
+        price: 250.00,
         before_photos: [
           'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=600&auto=format&fit=crop&q=80'
         ],
@@ -37,7 +38,7 @@ const INITIAL_DEMO_ORDERS: Order[] = [
       {
         id: 'item-2',
         brand_model: 'Adidas Yeezy Boost 350 V2',
-        service_name: 'Limpieza de Primeknit + Desodorización UV',
+        service_name: 'Limpieza Sencilla',
         price: 150.00,
         before_photos: [
           'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?w=600&auto=format&fit=crop&q=80'
@@ -57,7 +58,7 @@ const INITIAL_DEMO_ORDERS: Order[] = [
     status: 'ready',
     payment_method: 'cash',
     payment_status: 'pending',
-    total_amount: 180.00,
+    total_amount: 150.00,
     notes: 'Entregar en bolsa antipolvo.',
     ready_notification_sent: true,
     delivered_notification_sent: false,
@@ -66,9 +67,9 @@ const INITIAL_DEMO_ORDERS: Order[] = [
     order_items: [
       {
         id: 'item-3',
-        brand_model: 'Jordan 1 Retro High OG Chicago',
-        service_name: 'Restauración de Piel + Repintado de Entresuela',
-        price: 180.00,
+        brand_model: 'Gorra New Era NY 59FIFTY',
+        service_name: 'Gorra',
+        price: 150.00,
         before_photos: [
           'https://images.unsplash.com/photo-1552346154-21d32810aba3?w=600&auto=format&fit=crop&q=80'
         ],
@@ -217,6 +218,14 @@ export async function saveOrder(
       };
       orders.unshift(updatedOrder);
     }
+
+    if (orderData.customer_name && orderData.customer_phone) {
+      saveCustomer({
+        name: orderData.customer_name,
+        phone: orderData.customer_phone
+      }).catch(err => console.warn('Auto-save customer warning:', err));
+    }
+
     saveLocalOrders(orders);
     return updatedOrder;
   }
@@ -289,6 +298,13 @@ export async function saveOrder(
         after_photos: it.after_photos || []
       }));
       await supabase.from('order_items').insert(itemsToInsert);
+    }
+
+    if (orderData.customer_name && orderData.customer_phone) {
+      saveCustomer({
+        name: orderData.customer_name,
+        phone: orderData.customer_phone
+      }).catch(err => console.warn('Auto-save customer warning:', err));
     }
 
     const fullOrder = await fetchOrderByToken(savedOrder.public_token);
@@ -366,8 +382,35 @@ export async function updateOrderStatus(
   }
 }
 
-export function generateWhatsAppLink(order: Order, eventType: 'new_order' | 'ready' | 'delivered' | 'custom'): string {
-  let cleanPhone = (order.customer_phone || '').replace(/\D/g, '');
+export async function fetchBusinessSettings(): Promise<BusinessSettings | null> {
+  if (isDemoMode) {
+    const data = localStorage.getItem(LOCAL_STORAGE_SETTINGS_KEY);
+    if (data) {
+      try { return JSON.parse(data); } catch {}
+    }
+    return null;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('business_settings')
+      .select('*')
+      .single();
+
+    if (error) return null;
+    return data as BusinessSettings;
+  } catch {
+    return null;
+  }
+}
+
+export function generateWhatsAppLink(
+  order: Order,
+  eventType: 'new_order' | 'ready' | 'delivered' | 'custom' | 'contact_store',
+  overridePhone?: string
+): string {
+  let targetPhone = overridePhone || order.customer_phone || '';
+  let cleanPhone = targetPhone.replace(/\D/g, '');
   if (cleanPhone.length === 10) {
     cleanPhone = '52' + cleanPhone;
   }
@@ -377,13 +420,15 @@ export function generateWhatsAppLink(order: Order, eventType: 'new_order' | 'rea
 
   let text = '';
   if (eventType === 'new_order') {
-    text = `🧼 *MR CLEAN SNEAKERS*\n\nHola *${order.customer_name}* 👋\n\nHemos recibido tus tenis correctamente.\n\n📌 *Orden:* #${order.order_number}\n💰 *Total:* $${order.total_amount.toFixed(2)}\n\nPuedes consultar el avance de tu pedido en tiempo real aquí:\n🔗 ${publicUrl}`;
+    text = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*!\n\nYa recibimos tu pedido.\n\n*Orden:* #${order.order_number}\n*Total:* $${order.total_amount.toFixed(2)} MXN\n\nPuedes consultar el avance y fotos de tu pedido en tiempo real en el siguiente enlace:\n${publicUrl}\n\n¡Gracias por tu confianza!`;
   } else if (eventType === 'ready') {
-    text = `🧼 *MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*! 👋\n\n¡Tus tenis ya están listos! 🔥👟\n\n📌 *Orden:* #${order.order_number}\n✅ *Estado:* LISTO PARA ENTREGA\n\nConsulta los detalles y fotos finales aquí:\n🔗 ${publicUrl}`;
+    text = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*!\n\nTus tenis han quedado listos y están preparados para entrega.\n\n*Orden:* #${order.order_number}\n*Estado:* LISTO PARA ENTREGA\n\nConsulta los detalles y fotos finales aquí:\n${publicUrl}\n\n¡Te esperamos en tienda!`;
   } else if (eventType === 'delivered') {
-    text = `🧼 *MR CLEAN SNEAKERS*\n\n¡Gracias por confiar en nosotros! 🤝\n\nTu orden *#${order.order_number}* ha sido entregada correctamente. Esperamos verte nuevamente pronto. 👟✨`;
+    text = `*MR CLEAN SNEAKERS*\n\n¡Gracias por tu preferencia, *${order.customer_name}*!\n\nTu orden *#${order.order_number}* ha sido entregada con éxito. Esperamos que disfrutes tus tenis impecables.\n\n¡Esperamos verte pronto de nuevo!`;
+  } else if (eventType === 'contact_store') {
+    text = `*MR CLEAN SNEAKERS*\n\n¡Hola! Necesito información o apoyo sobre mi pedido:\n\n*Orden:* #${order.order_number}\n*Cliente:* ${order.customer_name}\n\nGracias.`;
   } else {
-    text = `🧼 *MR CLEAN SNEAKERS*\n\nHola *${order.customer_name}*, te compartimos el enlace para consultar tu pedido #${order.order_number}:\n🔗 ${publicUrl}`;
+    text = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*! Te compartimos el enlace oficial para consultar el avance de tu pedido en tiempo real:\n\n*Orden:* #${order.order_number}\n${publicUrl}`;
   }
 
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
@@ -422,5 +467,157 @@ export async function uploadOrderPhoto(file: File): Promise<string> {
       reader.onloadend = () => resolve(reader.result as string);
       reader.readAsDataURL(file);
     });
+  }
+}
+
+// ==========================================================
+// GESTIÓN DE CLIENTES FRECUENTES
+// ==========================================================
+
+const INITIAL_DEMO_CUSTOMERS: Customer[] = [
+  {
+    id: 'cust-1',
+    name: 'Carlos Mendoza',
+    phone: '525512345678',
+    notes: 'Cliente frecuente. Atención prioritaria.',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'cust-2',
+    name: 'Mariana Ríos',
+    phone: '525598765432',
+    notes: 'Prefiere bolsa antipolvo.',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
+function getLocalCustomers(): Customer[] {
+  const data = localStorage.getItem(LOCAL_STORAGE_CUSTOMERS_KEY);
+  if (!data) {
+    localStorage.setItem(LOCAL_STORAGE_CUSTOMERS_KEY, JSON.stringify(INITIAL_DEMO_CUSTOMERS));
+    return INITIAL_DEMO_CUSTOMERS;
+  }
+  try {
+    return JSON.parse(data);
+  } catch {
+    return INITIAL_DEMO_CUSTOMERS;
+  }
+}
+
+function saveLocalCustomers(custs: Customer[]) {
+  localStorage.setItem(LOCAL_STORAGE_CUSTOMERS_KEY, JSON.stringify(custs));
+}
+
+export async function fetchCustomers(): Promise<Customer[]> {
+  if (isDemoMode) {
+    return getLocalCustomers();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+    return data as Customer[];
+  } catch (err) {
+    console.warn('Error al conectar con Supabase para clientes, usando respaldo local:', err);
+    return getLocalCustomers();
+  }
+}
+
+export async function saveCustomer(custData: Partial<Customer>): Promise<Customer> {
+  if (!custData.name?.trim() || !custData.phone?.trim()) {
+    throw new Error('Nombre y teléfono son obligatorios para guardar el cliente');
+  }
+
+  const isEditing = Boolean(custData.id);
+
+  if (isDemoMode) {
+    const custs = getLocalCustomers();
+    let updated: Customer;
+    if (isEditing) {
+      const idx = custs.findIndex(c => c.id === custData.id);
+      updated = {
+        ...(custs[idx] || {}),
+        ...custData,
+        updated_at: new Date().toISOString()
+      } as Customer;
+      if (idx !== -1) custs[idx] = updated;
+    } else {
+      updated = {
+        id: `cust-local-${Date.now()}`,
+        name: custData.name.trim(),
+        phone: custData.phone.trim(),
+        notes: custData.notes || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      const existingIdx = custs.findIndex(c => c.phone === updated.phone);
+      if (existingIdx !== -1) {
+        custs[existingIdx] = { ...custs[existingIdx], ...updated };
+      } else {
+        custs.unshift(updated);
+      }
+    }
+    saveLocalCustomers(custs);
+    return updated;
+  }
+
+  try {
+    let saved: Customer;
+    if (isEditing) {
+      const { data, error } = await supabase
+        .from('customers')
+        .update({
+          name: custData.name.trim(),
+          phone: custData.phone.trim(),
+          notes: custData.notes
+        })
+        .eq('id', custData.id)
+        .select()
+        .single();
+      if (error) throw error;
+      saved = data;
+    } else {
+      const { data, error } = await supabase
+        .from('customers')
+        .upsert(
+          {
+            name: custData.name.trim(),
+            phone: custData.phone.trim(),
+            notes: custData.notes
+          },
+          { onConflict: 'phone' }
+        )
+        .select()
+        .single();
+      if (error) throw error;
+      saved = data;
+    }
+    return saved;
+  } catch (err) {
+    console.error('Error guardando cliente en Supabase:', err);
+    throw err;
+  }
+}
+
+export async function deleteCustomer(id: string): Promise<void> {
+  if (isDemoMode) {
+    const custs = getLocalCustomers();
+    const filtered = custs.filter(c => c.id !== id);
+    saveLocalCustomers(filtered);
+    return;
+  }
+
+  try {
+    const { error } = await supabase.from('customers').delete().eq('id', id);
+    if (error) throw error;
+  } catch (err) {
+    console.error('Error eliminando cliente en Supabase:', err);
+    throw err;
   }
 }

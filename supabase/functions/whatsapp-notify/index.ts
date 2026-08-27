@@ -87,7 +87,7 @@ serve(async (req) => {
 
     if (event_type === 'new_order') {
       templateName = 'mr_clean_nuevo_pedido';
-      fallbackText = `🧼 *MR CLEAN SNEAKERS*\n\nHola *${order.customer_name}* 👋\n\nHemos recibido tus tenis correctamente.\n\n📌 *Orden:* #${order.order_number}\n💰 *Total:* $${order.total_amount}\n\nPuedes consultar el avance de tu pedido en tiempo real aquí:\n🔗 ${publicUrl}`;
+      fallbackText = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*!\n\nYa recibimos tu pedido.\n\n*Orden:* #${order.order_number}\n*Total:* $${order.total_amount} MXN\n\nPuedes consultar el avance y fotos de tu pedido en tiempo real en el siguiente enlace:\n${publicUrl}\n\n¡Gracias por tu confianza!`;
       parameters = [
         { type: "text", text: order.customer_name },
         { type: "text", text: order.order_number },
@@ -96,7 +96,7 @@ serve(async (req) => {
       ];
     } else if (event_type === 'ready') {
       templateName = 'mr_clean_pedido_listo';
-      fallbackText = `🧼 *MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*! 👋\n\n¡Tus tenis ya están listos! 🔥👟\n\n📌 *Orden:* #${order.order_number}\n✅ *Estado:* LISTO PARA ENTREGA\n\nConsulta los detalles y fotos finales aquí:\n🔗 ${publicUrl}`;
+      fallbackText = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*!\n\nTus tenis han quedado listos y están preparados para entrega.\n\n*Orden:* #${order.order_number}\n*Estado:* LISTO PARA ENTREGA\n\nConsulta los detalles y fotos finales aquí:\n${publicUrl}\n\n¡Te esperamos en tienda!`;
       parameters = [
         { type: "text", text: order.customer_name },
         { type: "text", text: order.order_number },
@@ -104,7 +104,7 @@ serve(async (req) => {
       ];
     } else if (event_type === 'delivered') {
       templateName = 'mr_clean_pedido_entregado';
-      fallbackText = `🧼 *MR CLEAN SNEAKERS*\n\n¡Gracias por confiar en nosotros! 🤝\n\nTu orden *#${order.order_number}* ha sido entregada correctamente. Esperamos verte nuevamente pronto. 👟✨`;
+      fallbackText = `*MR CLEAN SNEAKERS*\n\n¡Gracias por tu preferencia, *${order.customer_name}*!\n\nTu orden *#${order.order_number}* ha sido entregada con éxito. Esperamos que disfrutes tus tenis impecables.\n\n¡Esperamos verte pronto de nuevo!`;
       parameters = [
         { type: "text", text: order.order_number }
       ];

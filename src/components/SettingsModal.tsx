@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, MessageSquare, Save, ShieldAlert, Check, HelpCircle, ExternalLink } from 'lucide-react';
+import { X, Save, ShieldAlert, Check, HelpCircle, ExternalLink } from 'lucide-react';
+import { WhatsAppIcon } from './WhatsAppIcon';
 import { BusinessSettings } from '../types/database';
 import { supabase, isDemoMode } from '../lib/supabaseClient';
 
@@ -85,7 +86,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-dark-700 bg-dark-950">
           <div className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-gold-400" />
+            <WhatsAppIcon className="w-5 h-5 text-gold-400 fill-gold-400" />
             <h3 className="text-lg font-bold text-slate-100">Configuración Meta WhatsApp Cloud API</h3>
           </div>
           <button
@@ -134,6 +135,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
 
           {/* Form Fields */}
           <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gold-400 mb-1 flex items-center gap-1.5">
+                <WhatsAppIcon className="w-3.5 h-3.5 fill-gold-400" />
+                Número de WhatsApp de la Tienda (Atención a Clientes)
+              </label>
+              <input
+                type="text"
+                placeholder="Ej: 525512345678 o 5512345678"
+                value={settings.store_phone || ''}
+                onChange={e => setSettings({ ...settings, store_phone: e.target.value })}
+                className="w-full px-3.5 py-2.5 bg-dark-950 border border-gold-500/30 rounded-lg text-slate-100 focus:outline-none focus:border-gold-400 font-mono text-xs"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Este es el número al que llegará el mensaje cuando los clientes presionen el botón de WhatsApp en su orden.
+              </p>
+            </div>
+
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
                 Phone Number ID (ID del número de teléfono)

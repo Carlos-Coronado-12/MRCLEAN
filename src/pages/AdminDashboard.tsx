@@ -6,9 +6,11 @@ import { StatusBadge, PaymentStatusBadge, STATUS_CONFIG } from '../components/St
 import { OrderFormModal } from '../components/OrderFormModal';
 import { QRModal } from '../components/QRModal';
 import { SettingsModal } from '../components/SettingsModal';
+import { CustomersModal } from '../components/CustomersModal';
+import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import {
-  Search, Plus, RefreshCw, Copy, Check, QrCode, ExternalLink, MessageCircle, DollarSign,
-  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp
+  Search, Plus, RefreshCw, Copy, Check, QrCode, ExternalLink, DollarSign,
+  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp, UserCheck
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
@@ -24,6 +26,7 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
   const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
   const [qrOrder, setQrOrder] = useState<Order | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCustomersOpen, setIsCustomersOpen] = useState(false);
 
   // Copy link feedback state
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -96,6 +99,7 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
     <div className="min-h-screen bg-dark-950 text-slate-100 flex flex-col">
       <Header
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenCustomers={() => setIsCustomersOpen(true)}
         onLogout={onLogout}
       />
 
@@ -120,6 +124,14 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
               title="Recargar datos"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+
+            <button
+              onClick={() => setIsCustomersOpen(true)}
+              className="flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold text-slate-200 bg-dark-900 hover:bg-dark-800 border border-gold-500/30 rounded-xl transition-all shadow-sm"
+            >
+              <UserCheck className="w-4 h-4 text-gold-400" />
+              Clientes Frecuentes
             </button>
 
             <button
@@ -276,7 +288,7 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
                             rel="noreferrer"
                             className="text-[11px] text-emerald-400 hover:underline inline-flex items-center gap-1 font-mono mt-0.5"
                           >
-                            <MessageCircle className="w-3 h-3" />
+                            <WhatsAppIcon className="w-3 h-3 fill-emerald-400" />
                             {order.customer_phone}
                           </a>
                         </td>
@@ -364,7 +376,7 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
                               className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/30"
                               title="Enviar mensaje por WhatsApp"
                             >
-                              <MessageCircle className="w-4 h-4" />
+                              <WhatsAppIcon className="w-4 h-4" />
                             </a>
 
                             {/* Generar QR */}
@@ -413,6 +425,19 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
       {isSettingsOpen && (
         <SettingsModal
           onClose={() => setIsSettingsOpen(false)}
+        />
+      )}
+
+      {isCustomersOpen && (
+        <CustomersModal
+          onClose={() => setIsCustomersOpen(false)}
+          onSelectCustomerForNewOrder={(cust) => {
+            setOrderToEdit({
+              customer_name: cust.name,
+              customer_phone: cust.phone
+            } as any);
+            setIsFormModalOpen(true);
+          }}
         />
       )}
 

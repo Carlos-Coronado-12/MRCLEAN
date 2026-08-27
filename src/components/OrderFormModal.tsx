@@ -1,12 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus } from '../types/database';
-import { saveOrder, uploadOrderPhoto } from '../services/orderService';
-import { X, Plus, Trash2, Camera, Upload, Loader2, Sparkles } from 'lucide-react';
+import { Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus, Customer } from '../types/database';
+import { saveOrder, uploadOrderPhoto, fetchCustomers } from '../services/orderService';
+import { X, Plus, Trash2, Camera, Upload, Loader2, Sparkles, UserCheck, ChevronDown } from 'lucide-react';
 
 interface OrderFormModalProps {
   orderToEdit?: Order | null;
   onClose: () => void;
   onSuccess: (savedOrder: Order) => void;
+}
+
+export interface ServiceItem {
+  id: string;
+  name: string;
+  price: number;
+}
+
+export const MAIN_SERVICES: ServiceItem[] = [
+  { id: 'Limpieza Sencilla', name: 'Limpieza Sencilla', price: 150 },
+  { id: 'Limpieza Detallada', name: 'Limpieza Detallada', price: 200 },
+  { id: 'Gorra', name: 'Gorra', price: 150 },
+];
+
+export const EXTRA_WHITENING_PRICE = 50;
+
+interface ExtendedOrderItem extends Partial<OrderItem> {
+  base_service?: string;
+  has_whitening?: boolean;
 }
 
 export const OrderFormModal: React.FC<OrderFormModalProps> = ({
@@ -17,7 +36,10 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   const isEditing = Boolean(orderToEdit);
 
   const [customerName, setCustomerName] = useState(orderToEdit?.customer_name || '');
-  const [customerPhone, setCustomerPhone] = useState(orderToEdit?.customer_phone || '');
+  const [customerPhone, setCustomerPhone] = useState(orderToEdit?.customer_phone || '52');
+  const [customersList, setCustomersList] = useState<Customer[]>([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+
   const [receptionDate, setReceptionDate] = useState(
     orderToEdit?.reception_date ? new Date(orderToEdit.reception_date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16)
   );
@@ -29,19 +51,42 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(orderToEdit?.payment_status || 'pending');
   const [notes, setNotes] = useState(orderToEdit?.notes || '');
 
+  useEffect(() => {
+    fetchCustomers().then(data => setCustomersList(data)).catch(() => {});
+  }, []);
+
+  // Helper para inicializar un ítem detectando base_service y has_whitening
+  const parseOrderItem = (item?: ExtendedOrderItem): ExtendedOrderItem => {
+    const sName = item?.service_name || 'Limpieza Sencilla';
+
+    // Encontrar base service
+    let base: string = MAIN_SERVICES[0].name;
+    if (/sencilla/i.test(sName)) base = 'Limpieza Sencilla';
+    else if (/detallada|profunda/i.test(sName)) base = 'Limpieza Detallada';
+    else if (/gorra/i.test(sName)) base = 'Gorra';
+    else if (item?.base_service) base = item.base_service;
+    else base = sName.replace(/\s*\+\s*blanqueamiento de suela/i, '').trim() || 'Limpieza Sencilla';
+
+    const hasWhitening = base === 'Gorra' ? false : Boolean(
+      item?.has_whitening ?? /blanqueamiento/i.test(sName)
+    );
+
+    return {
+      brand_model: item?.brand_model || '',
+      service_name: base === 'Gorra' ? 'Gorra' : sName,
+      base_service: base,
+      has_whitening: hasWhitening,
+      price: item?.price !== undefined ? Number(item.price) : 150,
+      before_photos: item?.before_photos || [],
+      after_photos: item?.after_photos || []
+    };
+  };
+
   // Sneakers items array
-  const [items, setItems] = useState<Partial<OrderItem>[]>(
+  const [items, setItems] = useState<ExtendedOrderItem[]>(
     orderToEdit?.order_items && orderToEdit.order_items.length > 0
-      ? orderToEdit.order_items
-      : [
-          {
-            brand_model: '',
-            service_name: 'Limpieza Profunda',
-            price: 150.00,
-            before_photos: [],
-            after_photos: []
-          }
-        ]
+      ? orderToEdit.order_items.map(it => parseOrderItem(it))
+      : [parseOrderItem({ service_name: 'Limpieza Sencilla', price: 150 })]
   );
 
   const [uploadingIndex, setUploadingIndex] = useState<{ index: number; type: 'before' | 'after' } | null>(null);
@@ -54,19 +99,59 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   const handleAddItem = () => {
     setItems([
       ...items,
-      {
-        brand_model: '',
-        service_name: 'Limpieza Profunda',
-        price: 150.00,
-        before_photos: [],
-        after_photos: []
-      }
+      parseOrderItem({ service_name: 'Limpieza Sencilla', price: 150 })
     ]);
   };
 
   const handleRemoveItem = (index: number) => {
     if (items.length <= 1) return;
     setItems(items.filter((_, i) => i !== index));
+  };
+
+  const handleServiceChange = (index: number, newBaseService: string) => {
+    const newItems = [...items];
+    const item = newItems[index];
+
+    const isGorra = newBaseService === 'Gorra';
+    const hasWhitening = isGorra ? false : Boolean(item.has_whitening);
+
+    const matchedService = MAIN_SERVICES.find(s => s.name === newBaseService);
+    const basePrice = matchedService ? matchedService.price : (Number(item.price) || 0);
+    const finalPrice = basePrice + (hasWhitening ? EXTRA_WHITENING_PRICE : 0);
+
+    const fullServiceName = newBaseService + (hasWhitening ? ' + Blanqueamiento de suela' : '');
+
+    newItems[index] = {
+      ...item,
+      base_service: newBaseService,
+      has_whitening: hasWhitening,
+      service_name: fullServiceName,
+      price: finalPrice
+    };
+    setItems(newItems);
+  };
+
+  const handleToggleWhitening = (index: number) => {
+    const newItems = [...items];
+    const item = newItems[index];
+    const newHasWhitening = !item.has_whitening;
+
+    const baseName = item.base_service || 'Limpieza Sencilla';
+    const matchedService = MAIN_SERVICES.find(s => s.name === baseName);
+    const basePrice = matchedService
+      ? matchedService.price
+      : ((Number(item.price) || 0) - (item.has_whitening ? EXTRA_WHITENING_PRICE : 0));
+
+    const finalPrice = Math.max(0, basePrice + (newHasWhitening ? EXTRA_WHITENING_PRICE : 0));
+    const fullServiceName = baseName + (newHasWhitening ? ' + Blanqueamiento de suela' : '');
+
+    newItems[index] = {
+      ...item,
+      has_whitening: newHasWhitening,
+      service_name: fullServiceName,
+      price: finalPrice
+    };
+    setItems(newItems);
   };
 
   const handleItemChange = (index: number, field: keyof OrderItem, value: any) => {
@@ -178,19 +263,100 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
 
           {/* Seccion 1: Datos del Cliente */}
           <div className="bg-dark-950 p-4 rounded-xl border border-dark-700 space-y-4">
-            <h4 className="font-bold text-gold-400 text-xs uppercase tracking-wider">1. Información del Cliente</h4>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h4 className="font-bold text-gold-400 text-xs uppercase tracking-wider">1. Información del Cliente</h4>
+              
+              {/* Quick Select Frequent Customer Dropdown */}
+              {customersList.length > 0 && (
+                <div className="relative">
+                  <select
+                    onChange={e => {
+                      const selected = customersList.find(c => c.id === e.target.value || c.phone === e.target.value);
+                      if (selected) {
+                        setCustomerName(selected.name);
+                        setCustomerPhone(selected.phone);
+                      }
+                      e.target.value = '';
+                    }}
+                    defaultValue=""
+                    className="px-3 py-1 bg-dark-900 border border-gold-500/30 rounded-lg text-gold-400 text-xs focus:outline-none cursor-pointer hover:bg-dark-800"
+                  >
+                    <option value="" disabled>👥 Cargar Cliente Frecuente ({customersList.length})</option>
+                    {customersList.map(c => (
+                      <option key={c.id || c.phone} value={c.id || c.phone}>
+                        {c.name} ({c.phone})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
+              
+              {/* Nombre Completo con Autocompletado */}
+              <div className="relative">
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Nombre Completo *</label>
                 <input
                   type="text"
                   required
                   placeholder="Ej: Juan Pérez"
                   value={customerName}
-                  onChange={e => setCustomerName(e.target.value)}
+                  onChange={e => {
+                    setCustomerName(e.target.value);
+                    setShowCustomerDropdown(true);
+                  }}
+                  onFocus={() => setShowCustomerDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
                   className="w-full px-3.5 py-2 bg-dark-900 border border-dark-700 rounded-lg text-slate-100 focus:outline-none focus:border-gold-400 text-xs"
                 />
+
+                {/* Autocomplete Dropdown List */}
+                {showCustomerDropdown && customersList.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-dark-900 border border-gold-500/40 rounded-xl shadow-2xl z-30 max-h-56 overflow-y-auto divide-y divide-dark-800 animate-fadeIn">
+                    <div className="px-3 py-1.5 bg-dark-950 text-[10px] font-bold text-gold-400 uppercase tracking-wider flex items-center justify-between sticky top-0 border-b border-dark-800">
+                      <span>👤 Seleccionar Cliente Frecuente ({customersList.length})</span>
+                    </div>
+
+                    {customersList
+                      .filter(c => 
+                        !customerName.trim() || 
+                        c.name.toLowerCase().includes(customerName.toLowerCase()) || 
+                        c.phone.includes(customerName)
+                      )
+                      .slice(0, 8)
+                      .map(c => (
+                        <div
+                          key={c.id || c.phone}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setCustomerName(c.name);
+                            setCustomerPhone(c.phone);
+                            setShowCustomerDropdown(false);
+                          }}
+                          className="p-3 hover:bg-gold-500/10 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                        >
+                          <div>
+                            <span className="font-bold text-slate-100 block">{c.name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">{c.phone}</span>
+                          </div>
+                          <span className="text-[10px] text-gold-400 bg-gold-500/10 border border-gold-500/20 px-2 py-0.5 rounded-md font-bold">
+                            Usar Perfil
+                          </span>
+                        </div>
+                      ))}
+
+                    {customersList.filter(c => 
+                        !customerName.trim() || 
+                        c.name.toLowerCase().includes(customerName.toLowerCase()) || 
+                        c.phone.includes(customerName)
+                      ).length === 0 && (
+                        <div className="p-3 text-xs text-slate-500 text-center">
+                          Sin coincidencias en clientes guardados
+                        </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -273,18 +439,17 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                   </div>
 
                   <div className="sm:col-span-1">
-                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Servicio Realizado *</label>
+                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Servicio *</label>
                     <select
-                      value={item.service_name}
-                      onChange={e => handleItemChange(idx, 'service_name', e.target.value)}
-                      className="w-full px-3 py-1.5 bg-dark-950 border border-dark-700 rounded-lg text-slate-100 text-xs focus:border-gold-400"
+                      value={item.base_service || 'Limpieza Sencilla'}
+                      onChange={e => handleServiceChange(idx, e.target.value)}
+                      className="w-full px-3 py-1.5 bg-dark-950 border border-dark-700 rounded-lg text-slate-100 text-xs focus:border-gold-400 font-medium"
                     >
-                      <option value="Limpieza Expres">Limpieza Exprés</option>
-                      <option value="Limpieza Profunda">Limpieza Profunda</option>
-                      <option value="Limpieza Premium + Gamuza">Limpieza Premium + Gamuza</option>
-                      <option value="Blanqueamiento de Suela">Blanqueamiento de Suela</option>
-                      <option value="Restauración de Color">Restauración de Color</option>
-                      <option value="Servicio Completo Custom">Servicio Completo Custom</option>
+                      {MAIN_SERVICES.map(svc => (
+                        <option key={svc.id} value={svc.name}>
+                          {svc.name} (${svc.price})
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -300,6 +465,37 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                     />
                   </div>
                 </div>
+
+                {/* Extra Toggle Switch (Solo para tenis, no para Gorra) */}
+                {item.base_service !== 'Gorra' && (
+                  <div className="p-2.5 bg-dark-950/80 rounded-lg border border-dark-700/80 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-1.5 rounded-lg ${item.has_whitening ? 'bg-gold-500/20 text-gold-400' : 'bg-dark-800 text-slate-500'}`}>
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-semibold text-slate-200 block">Extra: Blanqueamiento de suela</span>
+                        <span className="text-[10px] text-gold-400 font-mono">+$50.00 MXN</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={Boolean(item.has_whitening)}
+                      onClick={() => handleToggleWhitening(idx)}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        item.has_whitening ? 'bg-gold-500 shadow-gold-glow-sm' : 'bg-dark-800 border-dark-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full shadow ring-0 transition duration-200 ease-in-out ${
+                          item.has_whitening ? 'translate-x-5 bg-black' : 'translate-x-0 bg-slate-400'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                )}
 
                 {/* Subida de Fotos Antes / Después */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-dark-800">

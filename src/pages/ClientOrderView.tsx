@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchOrderByToken, generateWhatsAppLink } from '../services/orderService';
+import { fetchOrderByToken, fetchBusinessSettings, generateWhatsAppLink } from '../services/orderService';
 import { Order, OrderStatus } from '../types/database';
 import { STATUS_CONFIG, PaymentStatusBadge } from '../components/StatusBadge';
-import { Crown, Sparkles, Calendar, Clock, CheckCircle2, Package, ShieldCheck, MessageCircle, AlertCircle, Image as ImageIcon, ArrowRight } from 'lucide-react';
+import { WhatsAppIcon } from '../components/WhatsAppIcon';
+import { Crown, Sparkles, Calendar, Clock, CheckCircle2, Package, ShieldCheck, AlertCircle, Image as ImageIcon, ArrowRight } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 const STATUS_STEPS: { key: OrderStatus; label: string; sub: string }[] = [
@@ -16,6 +17,7 @@ const STATUS_STEPS: { key: OrderStatus; label: string; sub: string }[] = [
 export const ClientOrderView: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const [order, setOrder] = useState<Order | null>(null);
+  const [storePhone, setStorePhone] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
@@ -30,7 +32,15 @@ export const ClientOrderView: React.FC = () => {
     setLoading(true);
     setError(false);
     try {
-      const data = await fetchOrderByToken(orderToken);
+      const [data, bSettings] = await Promise.all([
+        fetchOrderByToken(orderToken),
+        fetchBusinessSettings()
+      ]);
+
+      if (bSettings?.store_phone) {
+        setStorePhone(bSettings.store_phone);
+      }
+
       if (data) {
         setOrder(data);
         if (data.status === 'ready' || data.status === 'delivered') {
@@ -144,12 +154,12 @@ export const ClientOrderView: React.FC = () => {
 
           {/* Contact Store WhatsApp Button */}
           <a
-            href={generateWhatsAppLink(order, 'custom')}
+            href={generateWhatsAppLink(order, 'contact_store', storePhone || undefined)}
             target="_blank"
             rel="noopener noreferrer"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg transition-all"
           >
-            <MessageCircle className="w-4 h-4" />
+            <WhatsAppIcon className="w-4 h-4 fill-slate-950" />
             Contactar a la Tienda
           </a>
         </div>

@@ -70,14 +70,26 @@ INSERT INTO public.business_settings (send_delivered_whatsapp)
 SELECT TRUE
 WHERE NOT EXISTS (SELECT 1 FROM public.business_settings);
 
--- 7. Índices para acelerar búsquedas
+-- 7. Tabla de Clientes Frecuentes (customers)
+CREATE TABLE IF NOT EXISTS public.customers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  phone TEXT UNIQUE NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 8. Índices para acelerar búsquedas
 CREATE INDEX IF NOT EXISTS idx_orders_public_token ON public.orders(public_token);
 CREATE INDEX IF NOT EXISTS idx_orders_order_number ON public.orders(order_number);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_customer_phone ON public.orders(customer_phone);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_customers_phone ON public.customers(phone);
+CREATE INDEX IF NOT EXISTS idx_customers_name ON public.customers(name);
 
--- 8. Trigger para actualizar updated_at automáticamente
+-- 9. Trigger para actualizar updated_at automáticamente
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -91,6 +103,11 @@ CREATE TRIGGER update_orders_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_customers_updated_at
+  BEFORE UPDATE ON public.customers
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
 -- ==========================================================
 -- SEGURIDAD: ROW LEVEL SECURITY (RLS)
 -- ==========================================================
@@ -98,6 +115,14 @@ CREATE TRIGGER update_orders_updated_at
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.business_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+
+-- POLÍTICAS PARA CUSTOMERS
+CREATE POLICY "Admins full control on customers"
+  ON public.customers FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
 
 -- POLÍTICAS PARA ORDERS
 -- Admin (Autenticado): Acceso total

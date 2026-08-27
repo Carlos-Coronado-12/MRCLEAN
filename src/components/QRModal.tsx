@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Order } from '../types/database';
-import { X, Printer, Copy, Check, ExternalLink } from 'lucide-react';
+import { generateWhatsAppLink } from '../services/orderService';
+import { WhatsAppIcon } from './WhatsAppIcon';
+import { X, Printer, Copy, Check, ExternalLink, Download } from 'lucide-react';
 import { STATUS_CONFIG } from './StatusBadge';
 
 interface QRModalProps {
@@ -10,7 +12,8 @@ interface QRModalProps {
 }
 
 export const QRModal: React.FC<QRModalProps> = ({ order, onClose }) => {
-  const [copied, setCopied] = React.useState(false);
+  const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const publicUrl = `${window.location.origin}/pedido/${order.public_token}`;
   const statusInfo = STATUS_CONFIG[order.status] || STATUS_CONFIG.received;
 
@@ -22,6 +25,66 @@ export const QRModal: React.FC<QRModalProps> = ({ order, onClose }) => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadQR = () => {
+    setDownloading(true);
+    try {
+      const svg = document.querySelector('#printable-qr-area svg') as SVGElement;
+      if (!svg) {
+        setDownloading(false);
+        return;
+      }
+
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+
+      img.onload = () => {
+        const padding = 40;
+        const textHeight = 60;
+        canvas.width = img.width + padding * 2;
+        canvas.height = img.height + padding * 2 + textHeight;
+
+        if (ctx) {
+          // Fondo blanco
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // Encabezado
+          ctx.fillStyle = '#07080A';
+          ctx.font = 'bold 16px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`MR CLEAN SNEAKERS`, canvas.width / 2, 28);
+          ctx.font = '12px sans-serif';
+          ctx.fillStyle = '#555555';
+          ctx.fillText(`Orden #${order.order_number} - ${order.customer_name}`, canvas.width / 2, 46);
+
+          // Dibujar QR SVG
+          ctx.drawImage(img, padding, 60);
+
+          // Pie de página
+          ctx.fillStyle = '#777777';
+          ctx.font = '10px monospace';
+          ctx.fillText(`Escanea para ver avance en vivo`, canvas.width / 2, canvas.height - 15);
+
+          const pngUrl = canvas.toDataURL('image/png');
+          const downloadLink = document.createElement('a');
+          downloadLink.href = pngUrl;
+          downloadLink.download = `QR-Orden-${order.order_number}.png`;
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+        }
+        setDownloading(false);
+      };
+
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    } catch (err) {
+      console.error('Error al descargar QR:', err);
+      setDownloading(false);
+    }
   };
 
   return (
@@ -81,32 +144,48 @@ export const QRModal: React.FC<QRModalProps> = ({ order, onClose }) => {
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 bg-dark-950 border-t border-dark-700 flex flex-wrap gap-2 justify-end">
+        <div className="px-6 py-4 bg-dark-950 border-t border-dark-700 grid grid-cols-2 gap-2">
+          
+          {/* Botón WhatsApp */}
+          <a
+            href={generateWhatsAppLink(order, 'custom')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-black bg-emerald-500 hover:bg-emerald-400 rounded-lg shadow-sm transition-all col-span-2 sm:col-span-1"
+          >
+            <WhatsAppIcon className="w-4 h-4 fill-slate-950" />
+            Enviar por WhatsApp
+          </a>
+
+          {/* Botón Descargar Imagen QR PNG */}
+          <button
+            type="button"
+            onClick={handleDownloadQR}
+            disabled={downloading}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-200 bg-dark-800 hover:bg-dark-700 rounded-lg border border-slate-700 transition-colors col-span-2 sm:col-span-1"
+          >
+            <Download className="w-4 h-4 text-gold-400" />
+            {downloading ? 'Generando...' : 'Descargar Imagen QR'}
+          </button>
+
+          {/* Copiar Link */}
           <button
             onClick={handleCopy}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-300 bg-dark-800 hover:bg-dark-700 rounded-lg border border-slate-700 transition-colors"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-300 bg-dark-800 hover:bg-dark-700 rounded-lg border border-slate-700 transition-colors"
           >
             {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
             {copied ? '¡Copiado!' : 'Copiar Link'}
           </button>
-          
-          <a
-            href={publicUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1 px-3 py-2 text-xs font-semibold text-gold-400 bg-gold-500/10 hover:bg-gold-500/20 rounded-lg border border-gold-500/30 transition-colors"
-          >
-            <ExternalLink className="w-4 h-4" />
-            Abrir
-          </a>
 
+          {/* Imprimir */}
           <button
             onClick={handlePrint}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-black bg-gradient-to-r from-gold-400 to-amber-500 hover:from-gold-300 hover:to-amber-400 rounded-lg shadow-gold-glow-sm transition-all"
+            className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-black bg-gradient-to-r from-gold-400 to-amber-500 hover:from-gold-300 hover:to-amber-400 rounded-lg shadow-gold-glow-sm transition-all"
           >
             <Printer className="w-4 h-4" />
-            Imprimir Recibo / QR
+            Imprimir
           </button>
+
         </div>
 
       </div>

@@ -35,9 +35,19 @@ export interface Order {
 
 export interface BusinessSettings {
   id?: string;
+  store_phone?: string;
   send_delivered_whatsapp: boolean;
   whatsapp_phone_number_id?: string;
   whatsapp_access_token?: string;
   whatsapp_business_account_id?: string;
+  updated_at?: string;
+}
+
+export interface Customer {
+  id?: string;
+  name: string;
+  phone: string;
+  notes?: string | null;
+  created_at?: string;
   updated_at?: string;
 }

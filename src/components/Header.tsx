@@ -1,14 +1,15 @@
 import React from 'react';
-import { Sparkles, Crown, LogOut, Settings, ShieldCheck, Database } from 'lucide-react';
+import { Sparkles, Crown, LogOut, Settings, ShieldCheck, Database, UserCheck } from 'lucide-react';
 import { isDemoMode } from '../lib/supabaseClient';
 
 interface HeaderProps {
   onOpenSettings?: () => void;
+  onOpenCustomers?: () => void;
   onLogout?: () => void;
   isLoggedIn?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenSettings, onLogout, isLoggedIn = true }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenSettings, onOpenCustomers, onLogout, isLoggedIn = true }) => {
   return (
     <header className="sticky top-0 z-40 bg-dark-900/80 backdrop-blur-md border-b border-gold-500/20 shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -45,6 +46,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSettings, onLogout, isLogg
                 <ShieldCheck className="w-3.5 h-3.5" />
                 Supabase En Vivo
               </span>
+            )}
+
+            {isLoggedIn && onOpenCustomers && (
+              <button
+                onClick={onOpenCustomers}
+                className="p-2 text-slate-400 hover:text-gold-400 hover:bg-gold-500/10 rounded-lg border border-transparent hover:border-gold-500/20 transition-all flex items-center gap-1.5 text-xs font-semibold"
+                title="Catálogo de Clientes Frecuentes"
+              >
+                <UserCheck className="w-5 h-5 text-gold-400" />
+                <span className="hidden md:inline">Clientes</span>
+              </button>
             )}
 
             {isLoggedIn && onOpenSettings && (
