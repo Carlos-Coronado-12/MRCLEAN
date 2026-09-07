@@ -1,5 +1,6 @@
 -- ==========================================================
 -- MR CLEAN SNEAKERS — ESQUEMA COMPLETO DE BASE DE DATOS Y RLS
+-- (Copia y pega todo este código en el SQL Editor de Supabase)
 -- ==========================================================
 
 -- 1. Habilitar extensión UUID
@@ -58,16 +59,17 @@ CREATE TABLE IF NOT EXISTS public.order_items (
 -- 6. Tabla de Configuración de Negocio (business_settings)
 CREATE TABLE IF NOT EXISTS public.business_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  store_phone TEXT DEFAULT '6147324931',
   send_delivered_whatsapp BOOLEAN NOT NULL DEFAULT TRUE,
-  whatsapp_phone_number_id TEXT,
-  whatsapp_access_token TEXT,
-  whatsapp_business_account_id TEXT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Asegurar columna store_phone si la tabla ya existía previamente
+ALTER TABLE public.business_settings ADD COLUMN IF NOT EXISTS store_phone TEXT DEFAULT '6147324931';
+
 -- Insertar fila inicial de configuración si no existe
-INSERT INTO public.business_settings (send_delivered_whatsapp)
-SELECT TRUE
+INSERT INTO public.business_settings (send_delivered_whatsapp, store_phone)
+SELECT TRUE, '6147324931'
 WHERE NOT EXISTS (SELECT 1 FROM public.business_settings);
 
 -- 7. Tabla de Clientes Frecuentes (customers)
@@ -98,11 +100,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_orders_updated_at ON public.orders;
 CREATE TRIGGER update_orders_updated_at
   BEFORE UPDATE ON public.orders
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_customers_updated_at ON public.customers;
 CREATE TRIGGER update_customers_updated_at
   BEFORE UPDATE ON public.customers
   FOR EACH ROW
@@ -117,28 +121,35 @@ ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.business_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 
--- POLÍTICAS PARA CUSTOMERS
+-- POLÍTICAS DE PERMISOS
+DROP POLICY IF EXISTS "Public full control on customers" ON public.customers;
+DROP POLICY IF EXISTS "Admins full control on customers" ON public.customers;
 CREATE POLICY "Public full control on customers"
   ON public.customers FOR ALL
   TO anon, authenticated
   USING (true)
   WITH CHECK (true);
 
--- POLÍTICAS PARA ORDERS
+DROP POLICY IF EXISTS "Public full control on orders" ON public.orders;
+DROP POLICY IF EXISTS "Admins full control on orders" ON public.orders;
+DROP POLICY IF EXISTS "Public read orders" ON public.orders;
 CREATE POLICY "Public full control on orders"
   ON public.orders FOR ALL
   TO anon, authenticated
   USING (true)
   WITH CHECK (true);
 
--- POLÍTICAS PARA ORDER_ITEMS
+DROP POLICY IF EXISTS "Public full control on order_items" ON public.order_items;
+DROP POLICY IF EXISTS "Admins full control on order_items" ON public.order_items;
+DROP POLICY IF EXISTS "Public read order_items" ON public.order_items;
 CREATE POLICY "Public full control on order_items"
   ON public.order_items FOR ALL
   TO anon, authenticated
   USING (true)
   WITH CHECK (true);
 
--- POLÍTICAS PARA BUSINESS_SETTINGS
+DROP POLICY IF EXISTS "Public full control on business_settings" ON public.business_settings;
+DROP POLICY IF EXISTS "Admins full control on business_settings" ON public.business_settings;
 CREATE POLICY "Public full control on business_settings"
   ON public.business_settings FOR ALL
   TO anon, authenticated
@@ -153,24 +164,29 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('orders-photos', 'orders-photos', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Permitir lectura pública de fotos
+DROP POLICY IF EXISTS "Public Access to Order Photos" ON storage.objects;
 CREATE POLICY "Public Access to Order Photos"
   ON storage.objects FOR SELECT
   TO anon, authenticated
   USING (bucket_id = 'orders-photos');
 
--- Permitir subida y modificación solo a admins autenticados
-CREATE POLICY "Admin Upload Order Photos"
+DROP POLICY IF EXISTS "Public Upload Order Photos" ON storage.objects;
+DROP POLICY IF EXISTS "Admin Upload Order Photos" ON storage.objects;
+CREATE POLICY "Public Upload Order Photos"
   ON storage.objects FOR INSERT
-  TO authenticated
+  TO anon, authenticated
   WITH CHECK (bucket_id = 'orders-photos');
 
-CREATE POLICY "Admin Update Order Photos"
+DROP POLICY IF EXISTS "Public Update Order Photos" ON storage.objects;
+DROP POLICY IF EXISTS "Admin Update Order Photos" ON storage.objects;
+CREATE POLICY "Public Update Order Photos"
   ON storage.objects FOR UPDATE
-  TO authenticated
+  TO anon, authenticated
   USING (bucket_id = 'orders-photos');
 
-CREATE POLICY "Admin Delete Order Photos"
+DROP POLICY IF EXISTS "Public Delete Order Photos" ON storage.objects;
+DROP POLICY IF EXISTS "Admin Delete Order Photos" ON storage.objects;
+CREATE POLICY "Public Delete Order Photos"
   ON storage.objects FOR DELETE
-  TO authenticated
+  TO anon, authenticated
   USING (bucket_id = 'orders-photos');
