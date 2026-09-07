@@ -621,3 +621,22 @@ export async function deleteCustomer(id: string): Promise<void> {
     throw err;
   }
 }
+
+export async function deleteOrder(id: string): Promise<void> {
+  if (isDemoMode) {
+    const orders = getLocalOrders();
+    const filtered = orders.filter(o => o.id !== id);
+    saveLocalOrders(filtered);
+    return;
+  }
+
+  try {
+    await supabase.from('order_items').delete().eq('order_id', id);
+    const { error } = await supabase.from('orders').delete().eq('id', id);
+    if (error) throw error;
+  } catch (err) {
+    console.error('Error eliminando pedido en Supabase:', err);
+    throw err;
+  }
+}
+

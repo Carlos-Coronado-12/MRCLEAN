@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Order, OrderStatus } from '../types/database';
-import { fetchOrders, updateOrderStatus, generateWhatsAppLink } from '../services/orderService';
+import { fetchOrders, updateOrderStatus, generateWhatsAppLink, deleteOrder } from '../services/orderService';
 import { Header } from '../components/Header';
 import { StatusBadge, PaymentStatusBadge, STATUS_CONFIG } from '../components/StatusBadge';
 import { OrderFormModal } from '../components/OrderFormModal';
@@ -10,7 +10,7 @@ import { CustomersModal } from '../components/CustomersModal';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import {
   Search, Plus, RefreshCw, Copy, Check, QrCode, ExternalLink, DollarSign,
-  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp, UserCheck
+  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp, UserCheck, Trash2
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
@@ -55,6 +55,18 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
   const handleEditOrder = (order: Order) => {
     setOrderToEdit(order);
     setIsFormModalOpen(true);
+  };
+
+  const handleDeleteOrder = async (order: Order) => {
+    if (window.confirm(`¿Estás seguro de eliminar el pedido #${order.order_number} de "${order.customer_name}"? Esta acción no se puede deshacer.`)) {
+      try {
+        await deleteOrder(order.id);
+        setOrders(prev => prev.filter(o => o.id !== order.id));
+      } catch (err) {
+        console.error('Error eliminando pedido:', err);
+        alert('Ocurrió un error al eliminar el pedido. Inténtalo nuevamente.');
+      }
+    }
   };
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
@@ -386,6 +398,15 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
                               title="Generar Código QR Imprimible"
                             >
                               <QrCode className="w-4 h-4" />
+                            </button>
+
+                            {/* Eliminar Pedido */}
+                            <button
+                              onClick={() => handleDeleteOrder(order)}
+                              className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:border-rose-500/50 rounded-lg border border-rose-500/30 transition-colors"
+                              title="Eliminar pedido"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
 
                           </div>
