@@ -613,17 +613,20 @@ export async function saveCustomer(custData: Partial<Customer>): Promise<Custome
   }
 }
 
-export async function deleteCustomer(id: string): Promise<void> {
+export async function deleteCustomer(identifier: string): Promise<void> {
   if (isDemoMode) {
     const custs = getLocalCustomers();
-    const filtered = custs.filter(c => c.id !== id);
+    const filtered = custs.filter(c => c.id !== identifier && c.phone !== identifier);
     saveLocalCustomers(filtered);
     return;
   }
 
   try {
-    const { error } = await supabase.from('customers').delete().eq('id', id);
-    if (error) throw error;
+    const { error: err1 } = await supabase.from('customers').delete().eq('id', identifier);
+    if (err1) {
+      const { error: err2 } = await supabase.from('customers').delete().eq('phone', identifier);
+      if (err2) throw err2;
+    }
   } catch (err) {
     console.error('Error eliminando cliente en Supabase:', err);
     throw err;

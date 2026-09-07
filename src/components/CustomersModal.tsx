@@ -100,15 +100,23 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
   };
 
   const handleDelete = async (cust: Customer) => {
-    if (!cust.id) return;
-    if (!window.confirm(`¿Seguro que deseas eliminar a ${cust.name} de tus clientes frecuentes?`)) return;
+    const targetIdentifier = cust.id || cust.phone;
+    if (!targetIdentifier) return;
+
+    if (!window.confirm(`¿Seguro que deseas eliminar a "${cust.name}" de tus clientes frecuentes?`)) return;
 
     try {
-      await deleteCustomer(cust.id);
-      setCustomers(customers.filter(c => c.id !== cust.id));
-      if (editingCustomer?.id === cust.id) handleCancelForm();
+      await deleteCustomer(targetIdentifier);
+      setCustomers(prev => prev.filter(c => {
+        if (cust.id && c.id) return c.id !== cust.id;
+        return c.phone !== cust.phone;
+      }));
+      if (editingCustomer && ((cust.id && editingCustomer.id === cust.id) || editingCustomer.phone === cust.phone)) {
+        handleCancelForm();
+      }
     } catch (err) {
       console.error('Error eliminando cliente:', err);
+      alert('Ocurrió un error al eliminar el cliente. Inténtalo nuevamente.');
     }
   };
 
