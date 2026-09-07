@@ -110,7 +110,6 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
   return (
     <div className="min-h-screen bg-dark-950 text-slate-100 flex flex-col">
       <Header
-        onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenCustomers={() => setIsCustomersOpen(true)}
         onLogout={onLogout}
       />
@@ -440,12 +439,6 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
         <QRModal
           order={qrOrder}
           onClose={() => setQrOrder(null)}
-        />
-      )}
-
-      {isSettingsOpen && (
-        <SettingsModal
-          onClose={() => setIsSettingsOpen(false)}
         />
       )}
 

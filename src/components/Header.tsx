@@ -59,16 +59,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSettings, onOpenCustomers,
               </button>
             )}
 
-            {isLoggedIn && onOpenSettings && (
-              <button
-                onClick={onOpenSettings}
-                className="p-2 text-slate-400 hover:text-gold-400 hover:bg-gold-500/10 rounded-lg border border-transparent hover:border-gold-500/20 transition-all"
-                title="Configuración de WhatsApp y Negocio"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-            )}
-
             {isLoggedIn && onLogout && (
               <button
                 onClick={onLogout}

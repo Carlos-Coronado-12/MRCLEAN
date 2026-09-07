@@ -613,6 +613,10 @@ export async function saveCustomer(custData: Partial<Customer>): Promise<Custome
   }
 }
 
+function isUUID(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 export async function deleteCustomer(identifier: string): Promise<void> {
   if (isDemoMode) {
     const custs = getLocalCustomers();
@@ -622,10 +626,12 @@ export async function deleteCustomer(identifier: string): Promise<void> {
   }
 
   try {
-    const { error: err1 } = await supabase.from('customers').delete().eq('id', identifier);
-    if (err1) {
-      const { error: err2 } = await supabase.from('customers').delete().eq('phone', identifier);
-      if (err2) throw err2;
+    if (isUUID(identifier)) {
+      const { error } = await supabase.from('customers').delete().eq('id', identifier);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('customers').delete().eq('phone', identifier);
+      if (error) throw error;
     }
   } catch (err) {
     console.error('Error eliminando cliente en Supabase:', err);
