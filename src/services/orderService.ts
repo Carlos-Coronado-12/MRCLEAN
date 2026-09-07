@@ -409,7 +409,15 @@ export function generateWhatsAppLink(
   eventType: 'new_order' | 'ready' | 'delivered' | 'custom' | 'contact_store',
   overridePhone?: string
 ): string {
-  let targetPhone = overridePhone || order.customer_phone || '';
+  let targetPhone = overridePhone || '';
+  if (!targetPhone) {
+    if (eventType === 'contact_store') {
+      targetPhone = '6147324931';
+    } else {
+      targetPhone = order.customer_phone || '';
+    }
+  }
+
   let cleanPhone = targetPhone.replace(/\D/g, '');
   if (cleanPhone.length === 10) {
     cleanPhone = '52' + cleanPhone;
@@ -426,7 +434,7 @@ export function generateWhatsAppLink(
   } else if (eventType === 'delivered') {
     text = `*MR CLEAN SNEAKERS*\n\n¡Gracias por tu preferencia, *${order.customer_name}*!\n\nTu orden *#${order.order_number}* ha sido entregada con éxito. Esperamos que disfrutes tus tenis impecables.\n\n¡Esperamos verte pronto de nuevo!`;
   } else if (eventType === 'contact_store') {
-    text = `*MR CLEAN SNEAKERS*\n\n¡Hola! Necesito información o apoyo sobre mi pedido:\n\n*Orden:* #${order.order_number}\n*Cliente:* ${order.customer_name}\n\nGracias.`;
+    text = `*MR CLEAN SNEAKERS*\n\n¡Hola! Me gustaría hacer otro pedido.`;
   } else {
     text = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*! Te compartimos el enlace oficial para consultar el avance de tu pedido en tiempo real:\n\n*Orden:* #${order.order_number}\n${publicUrl}`;
   }
