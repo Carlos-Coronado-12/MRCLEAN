@@ -115,8 +115,7 @@ export const CustomersModal: React.FC<CustomersModalProps> = ({
         handleCancelForm();
       }
     } catch (err) {
-      console.error('Error eliminando cliente:', err);
-      alert('Ocurrió un error al eliminar el cliente. Inténtalo nuevamente.');
+      console.warn('Error eliminando cliente:', err);
     }
   };
 

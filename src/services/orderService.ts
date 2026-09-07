@@ -618,24 +618,25 @@ function isUUID(str: string): boolean {
 }
 
 export async function deleteCustomer(identifier: string): Promise<void> {
+  // Eliminar localmente siempre por respaldo
+  const custs = getLocalCustomers();
+  const filtered = custs.filter(c => c.id !== identifier && c.phone !== identifier);
+  saveLocalCustomers(filtered);
+
   if (isDemoMode) {
-    const custs = getLocalCustomers();
-    const filtered = custs.filter(c => c.id !== identifier && c.phone !== identifier);
-    saveLocalCustomers(filtered);
     return;
   }
 
   try {
     if (isUUID(identifier)) {
       const { error } = await supabase.from('customers').delete().eq('id', identifier);
-      if (error) throw error;
+      if (error) console.warn('Aviso borrando por ID en Supabase:', error.message);
     } else {
       const { error } = await supabase.from('customers').delete().eq('phone', identifier);
-      if (error) throw error;
+      if (error) console.warn('Aviso borrando por Teléfono en Supabase:', error.message);
     }
   } catch (err) {
-    console.error('Error eliminando cliente en Supabase:', err);
-    throw err;
+    console.warn('Advertencia eliminando cliente en Supabase:', err);
   }
 }
 

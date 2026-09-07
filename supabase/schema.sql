@@ -118,44 +118,30 @@ ALTER TABLE public.business_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 
 -- POLÍTICAS PARA CUSTOMERS
-CREATE POLICY "Admins full control on customers"
+CREATE POLICY "Public full control on customers"
   ON public.customers FOR ALL
-  TO authenticated
+  TO anon, authenticated
   USING (true)
   WITH CHECK (true);
 
 -- POLÍTICAS PARA ORDERS
--- Admin (Autenticado): Acceso total
-CREATE POLICY "Admins full control on orders"
+CREATE POLICY "Public full control on orders"
   ON public.orders FOR ALL
-  TO authenticated
+  TO anon, authenticated
   USING (true)
   WITH CHECK (true);
-
--- Público (Anon): Lectura únicamente
-CREATE POLICY "Public read orders"
-  ON public.orders FOR SELECT
-  TO anon, authenticated
-  USING (true);
 
 -- POLÍTICAS PARA ORDER_ITEMS
--- Admin (Autenticado): Acceso total
-CREATE POLICY "Admins full control on order_items"
+CREATE POLICY "Public full control on order_items"
   ON public.order_items FOR ALL
-  TO authenticated
+  TO anon, authenticated
   USING (true)
   WITH CHECK (true);
 
--- Público (Anon): Lectura únicamente
-CREATE POLICY "Public read order_items"
-  ON public.order_items FOR SELECT
-  TO anon, authenticated
-  USING (true);
-
 -- POLÍTICAS PARA BUSINESS_SETTINGS
-CREATE POLICY "Admins full control on business_settings"
+CREATE POLICY "Public full control on business_settings"
   ON public.business_settings FOR ALL
-  TO authenticated
+  TO anon, authenticated
   USING (true)
   WITH CHECK (true);
 
