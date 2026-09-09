@@ -51,3 +51,14 @@ export interface Customer {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface Product {
+  id?: string;
+  name: string;
+  price: number;
+  category?: string;
+  description?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+

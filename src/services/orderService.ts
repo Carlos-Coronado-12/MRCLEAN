@@ -1,9 +1,10 @@
 import { supabase, isDemoMode } from '../lib/supabaseClient';
-import { Order, OrderItem, OrderStatus, BusinessSettings, Customer } from '../types/database';
+import { Order, OrderItem, OrderStatus, BusinessSettings, Customer, Product } from '../types/database';
 
 const LOCAL_STORAGE_ORDERS_KEY = 'mrclean_orders_db_v1';
 const LOCAL_STORAGE_SETTINGS_KEY = 'mrclean_settings_db_v1';
 const LOCAL_STORAGE_CUSTOMERS_KEY = 'mrclean_customers_db_v1';
+const LOCAL_STORAGE_PRODUCTS_KEY = 'mrclean_products_db_v1';
 
 // Datos iniciales de demostración en caso de no tener Supabase configurado aún
 const INITIAL_DEMO_ORDERS: Order[] = [
@@ -657,4 +658,212 @@ export async function deleteOrder(id: string): Promise<void> {
     throw err;
   }
 }
+
+// ==========================================================
+// GESTIÓN DE PRODUCTOS Y SERVICIOS
+// ==========================================================
+
+export const INITIAL_DEMO_PRODUCTS: Product[] = [
+  {
+    id: 'prod-1',
+    name: 'Limpieza Sencilla',
+    price: 150.00,
+    category: 'servicio',
+    description: 'Lavado general exterior, agujetas y media suela básica.',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-2',
+    name: 'Limpieza Detallada',
+    price: 200.00,
+    category: 'servicio',
+    description: 'Lavado profundo interior/exterior, desinfección y acondicionado de materiales.',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-3',
+    name: 'Gorra',
+    price: 150.00,
+    category: 'servicio',
+    description: 'Limpieza especializada de gorras con hormado y eliminación de sudor.',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-4',
+    name: 'Blanqueamiento de Suela',
+    price: 50.00,
+    category: 'complemento',
+    description: 'Tratamiento desamarilleador de suelas de goma/transparentes.',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-5',
+    name: 'Restauración / Pintura',
+    price: 350.00,
+    category: 'restauracion',
+    description: 'Repintado de media suela o piel dañada con pintura acrílica especializada.',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
+function getLocalProducts(): Product[] {
+  const data = localStorage.getItem(LOCAL_STORAGE_PRODUCTS_KEY);
+  if (!data) {
+    localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(INITIAL_DEMO_PRODUCTS));
+    return INITIAL_DEMO_PRODUCTS;
+  }
+  try {
+    return JSON.parse(data);
+  } catch {
+    return INITIAL_DEMO_PRODUCTS;
+  }
+}
+
+function saveLocalProducts(products: Product[]) {
+  localStorage.setItem(LOCAL_STORAGE_PRODUCTS_KEY, JSON.stringify(products));
+}
+
+export async function fetchProducts(): Promise<Product[]> {
+  if (isDemoMode) {
+    return getLocalProducts();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    // Si no hay productos en la BD aún, retornar iniciales como fallback
+    if (!data || data.length === 0) {
+      return getLocalProducts();
+    }
+    return data as Product[];
+  } catch (err) {
+    console.warn('Error al obtener productos de Supabase, usando respaldo local:', err);
+    return getLocalProducts();
+  }
+}
+
+export async function saveProduct(productData: Partial<Product>): Promise<Product> {
+  if (!productData.name?.trim()) {
+    throw new Error('El nombre del producto/servicio es obligatorio');
+  }
+  if (productData.price === undefined || productData.price < 0) {
+    throw new Error('El precio debe ser un número mayor o igual a 0');
+  }
+
+  const isEditing = Boolean(productData.id);
+
+  if (isDemoMode) {
+    const products = getLocalProducts();
+    let updated: Product;
+    if (isEditing) {
+      const idx = products.findIndex(p => p.id === productData.id);
+      updated = {
+        ...(products[idx] || {}),
+        ...productData,
+        price: Number(productData.price),
+        updated_at: new Date().toISOString()
+      } as Product;
+      if (idx !== -1) products[idx] = updated;
+    } else {
+      updated = {
+        id: `prod-local-${Date.now()}`,
+        name: productData.name.trim(),
+        price: Number(productData.price),
+        category: productData.category || 'servicio',
+        description: productData.description || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      products.push(updated);
+    }
+    saveLocalProducts(products);
+    return updated;
+  }
+
+  try {
+    let saved: Product;
+    if (isEditing) {
+      const { data, error } = await supabase
+        .from('products')
+        .update({
+          name: productData.name.trim(),
+          price: Number(productData.price),
+          category: productData.category || 'servicio',
+          description: productData.description || null
+        })
+        .eq('id', productData.id)
+        .select()
+        .single();
+      if (error) throw error;
+      saved = data;
+    } else {
+      const { data, error } = await supabase
+        .from('products')
+        .insert([{
+          name: productData.name.trim(),
+          price: Number(productData.price),
+          category: productData.category || 'servicio',
+          description: productData.description || null
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      saved = data;
+    }
+    return saved;
+  } catch (err) {
+    console.warn('Error guardando producto en Supabase (usando respaldo local):', err);
+    // Respaldo local si la tabla aún no se ha creado en el SQL Editor de Supabase
+    const products = getLocalProducts();
+    let updated: Product;
+    if (isEditing) {
+      const idx = products.findIndex(p => p.id === productData.id);
+      updated = {
+        ...(products[idx] || {}),
+        ...productData,
+        price: Number(productData.price),
+        updated_at: new Date().toISOString()
+      } as Product;
+      if (idx !== -1) products[idx] = updated;
+    } else {
+      updated = {
+        id: `prod-local-${Date.now()}`,
+        name: productData.name.trim(),
+        price: Number(productData.price),
+        category: productData.category || 'servicio',
+        description: productData.description || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      products.push(updated);
+    }
+    saveLocalProducts(products);
+    return updated;
+  }
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  const products = getLocalProducts();
+  const filtered = products.filter(p => p.id !== id);
+  saveLocalProducts(filtered);
+
+  if (isDemoMode) return;
+
+  try {
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) console.warn('Aviso borrando producto en Supabase:', error.message);
+  } catch (err) {
+    console.warn('Error eliminando producto en Supabase:', err);
+  }
+}
+
 

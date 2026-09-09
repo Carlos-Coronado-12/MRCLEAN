@@ -7,6 +7,7 @@ import { OrderFormModal } from '../components/OrderFormModal';
 import { QRModal } from '../components/QRModal';
 import { SettingsModal } from '../components/SettingsModal';
 import { CustomersModal } from '../components/CustomersModal';
+import { ProductsModal } from '../components/ProductsModal';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import {
   Search, Plus, RefreshCw, Copy, Check, QrCode, ExternalLink, DollarSign,
@@ -27,6 +28,7 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
   const [qrOrder, setQrOrder] = useState<Order | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCustomersOpen, setIsCustomersOpen] = useState(false);
+  const [isProductsOpen, setIsProductsOpen] = useState(false);
 
   // Copy link feedback state
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -111,46 +113,56 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
     <div className="min-h-screen bg-dark-950 text-slate-100 flex flex-col">
       <Header
         onOpenCustomers={() => setIsCustomersOpen(true)}
+        onOpenProducts={() => setIsProductsOpen(true)}
         onLogout={onLogout}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
         {/* Top Header Title & Action */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
+        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+          <div className="space-y-1 max-w-2xl">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-2">
               Panel Administrativo de Pedidos
-              <Sparkles className="w-6 h-6 text-gold-400" />
+              <Sparkles className="w-6 h-6 text-gold-400 shrink-0" />
             </h1>
             <p className="text-xs sm:text-sm text-slate-400">
-              Administra tus órdenes de restauración de tenis, genera links únicos y notifica por WhatsApp en tiempo real.
+              Administra tus órdenes de restauración de tenis, catálogo de productos, clientes y notifica por WhatsApp en tiempo real.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center flex-wrap sm:flex-nowrap gap-2.5 shrink-0">
             <button
               onClick={loadOrdersData}
-              className="p-2.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 rounded-xl text-slate-400 hover:text-white transition-colors"
+              className="p-2.5 bg-dark-900 hover:bg-dark-800 border border-dark-700 rounded-xl text-slate-400 hover:text-white transition-all shrink-0"
               title="Recargar datos"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
 
             <button
-              onClick={() => setIsCustomersOpen(true)}
-              className="flex items-center gap-2 px-4 py-3 text-xs sm:text-sm font-bold text-slate-200 bg-dark-900 hover:bg-dark-800 border border-gold-500/30 rounded-xl transition-all shadow-sm"
+              onClick={() => setIsProductsOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-200 bg-dark-900 hover:bg-dark-800 border border-gold-500/30 rounded-xl transition-all shadow-sm whitespace-nowrap shrink-0"
+              title="Administrar catálogo de productos y servicios"
             >
-              <UserCheck className="w-4 h-4 text-gold-400" />
-              Clientes Frecuentes
+              <Package className="w-4 h-4 text-gold-400 shrink-0" />
+              <span>Menú Productos</span>
+            </button>
+
+            <button
+              onClick={() => setIsCustomersOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-200 bg-dark-900 hover:bg-dark-800 border border-gold-500/30 rounded-xl transition-all shadow-sm whitespace-nowrap shrink-0"
+            >
+              <UserCheck className="w-4 h-4 text-gold-400 shrink-0" />
+              <span>Clientes Frecuentes</span>
             </button>
 
             <button
               onClick={handleCreateOrder}
-              className="flex items-center gap-2 px-5 py-3 text-xs sm:text-sm font-bold text-black bg-gradient-to-r from-gold-400 via-gold-500 to-amber-500 hover:from-gold-300 hover:to-amber-400 rounded-xl shadow-gold-glow transition-all"
+              className="flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-bold text-black bg-gradient-to-r from-gold-400 via-gold-500 to-amber-500 hover:from-gold-300 hover:to-amber-400 rounded-xl shadow-gold-glow transition-all whitespace-nowrap shrink-0"
             >
-              <Plus className="w-5 h-5" />
-              Nuevo Pedido
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>Nuevo Pedido</span>
             </button>
           </div>
         </div>
@@ -452,6 +464,12 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
             } as any);
             setIsFormModalOpen(true);
           }}
+        />
+      )}
+
+      {isProductsOpen && (
+        <ProductsModal
+          onClose={() => setIsProductsOpen(false)}
         />
       )}
 

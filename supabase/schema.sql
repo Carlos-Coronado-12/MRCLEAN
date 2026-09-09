@@ -82,7 +82,18 @@ CREATE TABLE IF NOT EXISTS public.customers (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 8. Índices para acelerar búsquedas
+-- 8. Tabla de Productos y Servicios (products)
+CREATE TABLE IF NOT EXISTS public.products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  price NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+  category TEXT DEFAULT 'servicio',
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 9. Índices para acelerar búsquedas
 CREATE INDEX IF NOT EXISTS idx_orders_public_token ON public.orders(public_token);
 CREATE INDEX IF NOT EXISTS idx_orders_order_number ON public.orders(order_number);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
@@ -90,6 +101,8 @@ CREATE INDEX IF NOT EXISTS idx_orders_customer_phone ON public.orders(customer_p
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON public.order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON public.customers(phone);
 CREATE INDEX IF NOT EXISTS idx_customers_name ON public.customers(name);
+CREATE INDEX IF NOT EXISTS idx_products_name ON public.products(name);
+CREATE INDEX IF NOT EXISTS idx_products_category ON public.products(category);
 
 -- 9. Trigger para actualizar updated_at automáticamente
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -112,6 +125,12 @@ CREATE TRIGGER update_customers_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_products_updated_at ON public.products;
+CREATE TRIGGER update_products_updated_at
+  BEFORE UPDATE ON public.products
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
 -- ==========================================================
 -- SEGURIDAD: ROW LEVEL SECURITY (RLS)
 -- ==========================================================
@@ -120,8 +139,16 @@ ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.business_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 
 -- POLÍTICAS DE PERMISOS
+DROP POLICY IF EXISTS "Public full control on products" ON public.products;
+CREATE POLICY "Public full control on products"
+  ON public.products FOR ALL
+  TO anon, authenticated
+  USING (true)
+  WITH CHECK (true);
+
 DROP POLICY IF EXISTS "Public full control on customers" ON public.customers;
 DROP POLICY IF EXISTS "Admins full control on customers" ON public.customers;
 CREATE POLICY "Public full control on customers"

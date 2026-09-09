@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus, Customer } from '../types/database';
-import { saveOrder, uploadOrderPhoto, fetchCustomers } from '../services/orderService';
+import { Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus, Customer, Product } from '../types/database';
+import { saveOrder, uploadOrderPhoto, fetchCustomers, fetchProducts } from '../services/orderService';
 import { X, Plus, Trash2, Camera, Upload, Loader2, Sparkles, UserCheck, ChevronDown } from 'lucide-react';
 
 interface OrderFormModalProps {
@@ -51,8 +51,20 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(orderToEdit?.payment_status || 'pending');
   const [notes, setNotes] = useState(orderToEdit?.notes || '');
 
+  const [availableServices, setAvailableServices] = useState<ServiceItem[]>(MAIN_SERVICES);
+
   useEffect(() => {
     fetchCustomers().then(data => setCustomersList(data)).catch(() => {});
+    fetchProducts().then(prods => {
+      if (prods && prods.length > 0) {
+        const mapped: ServiceItem[] = prods.map(p => ({
+          id: p.id || p.name,
+          name: p.name,
+          price: p.price
+        }));
+        setAvailableServices(mapped);
+      }
+    }).catch(() => {});
   }, []);
 
   // Helper para inicializar un ítem detectando base_service y has_whitening
@@ -97,9 +109,10 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   const totalAmount = items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
 
   const handleAddItem = () => {
+    const defaultSvc = availableServices[0] || MAIN_SERVICES[0];
     setItems([
       ...items,
-      parseOrderItem({ service_name: 'Limpieza Sencilla', price: 150 })
+      parseOrderItem({ service_name: defaultSvc.name, price: defaultSvc.price })
     ]);
   };
 
@@ -115,7 +128,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
     const isGorra = newBaseService === 'Gorra';
     const hasWhitening = isGorra ? false : Boolean(item.has_whitening);
 
-    const matchedService = MAIN_SERVICES.find(s => s.name === newBaseService);
+    const matchedService = availableServices.find(s => s.name === newBaseService) || MAIN_SERVICES.find(s => s.name === newBaseService);
     const basePrice = matchedService ? matchedService.price : (Number(item.price) || 0);
     const finalPrice = basePrice + (hasWhitening ? EXTRA_WHITENING_PRICE : 0);
 
@@ -137,7 +150,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
     const newHasWhitening = !item.has_whitening;
 
     const baseName = item.base_service || 'Limpieza Sencilla';
-    const matchedService = MAIN_SERVICES.find(s => s.name === baseName);
+    const matchedService = availableServices.find(s => s.name === baseName) || MAIN_SERVICES.find(s => s.name === baseName);
     const basePrice = matchedService
       ? matchedService.price
       : ((Number(item.price) || 0) - (item.has_whitening ? EXTRA_WHITENING_PRICE : 0));
@@ -445,7 +458,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                       onChange={e => handleServiceChange(idx, e.target.value)}
                       className="w-full px-3 py-1.5 bg-dark-950 border border-dark-700 rounded-lg text-slate-100 text-xs focus:border-gold-400 font-medium"
                     >
-                      {MAIN_SERVICES.map(svc => (
+                      {availableServices.map(svc => (
                         <option key={svc.id} value={svc.name}>
                           {svc.name} (${svc.price})
                         </option>
