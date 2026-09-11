@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { ClientOrderView } from './pages/ClientOrderView';
+import { SchedulePickupPage } from './pages/SchedulePickupPage';
 import { LoginPage } from './pages/LoginPage';
 import { supabase, isDemoMode } from './lib/supabaseClient';
 
@@ -56,8 +57,10 @@ export const App: React.FC = () => {
     <BrowserRouter>
       <Routes>
         
-        {/* Ruta pública del cliente (NO requiere login) */}
+        {/* Rutas públicas del cliente (NO requieren login) */}
         <Route path="/pedido/:token" element={<ClientOrderView />} />
+        <Route path="/agendar" element={<SchedulePickupPage />} />
+        <Route path="/colecta" element={<SchedulePickupPage />} />
 
         {/* Panel Administrativo (Requiere login) */}
         <Route

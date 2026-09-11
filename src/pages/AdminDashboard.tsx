@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Order, OrderStatus } from '../types/database';
-import { fetchOrders, updateOrderStatus, generateWhatsAppLink, deleteOrder } from '../services/orderService';
+import { Order, OrderStatus, PickupRequest } from '../types/database';
+import { fetchOrders, updateOrderStatus, generateWhatsAppLink, deleteOrder, fetchPickupRequests } from '../services/orderService';
 import { Header } from '../components/Header';
 import { StatusBadge, PaymentStatusBadge, STATUS_CONFIG } from '../components/StatusBadge';
 import { OrderFormModal } from '../components/OrderFormModal';
@@ -8,10 +8,11 @@ import { QRModal } from '../components/QRModal';
 import { SettingsModal } from '../components/SettingsModal';
 import { CustomersModal } from '../components/CustomersModal';
 import { ProductsModal } from '../components/ProductsModal';
+import { PickupRequestsModal } from '../components/PickupRequestsModal';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import {
   Search, Plus, RefreshCw, Copy, Check, QrCode, ExternalLink, DollarSign,
-  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp, UserCheck, Trash2
+  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp, UserCheck, Trash2, Instagram
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
@@ -25,10 +26,13 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
   // Modals state
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
+  const [prefillPickup, setPrefillPickup] = useState<PickupRequest | null>(null);
   const [qrOrder, setQrOrder] = useState<Order | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCustomersOpen, setIsCustomersOpen] = useState(false);
   const [isProductsOpen, setIsProductsOpen] = useState(false);
+  const [isPickupsOpen, setIsPickupsOpen] = useState(false);
+  const [pendingPickupsCount, setPendingPickupsCount] = useState(0);
 
   // Copy link feedback state
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -40,10 +44,14 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
   const loadOrdersData = async () => {
     setLoading(true);
     try {
-      const data = await fetchOrders();
-      setOrders(data);
+      const [ordersData, pickupsData] = await Promise.all([
+        fetchOrders(),
+        fetchPickupRequests()
+      ]);
+      setOrders(ordersData);
+      setPendingPickupsCount(pickupsData.filter(p => p.status === 'pending').length);
     } catch (e) {
-      console.error('Error cargando pedidos:', e);
+      console.error('Error cargando datos del dashboard:', e);
     } finally {
       setLoading(false);
     }
@@ -123,6 +131,8 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
       <Header
         onOpenCustomers={() => setIsCustomersOpen(true)}
         onOpenProducts={() => setIsProductsOpen(true)}
+        onOpenPickups={() => setIsPickupsOpen(true)}
+        pendingPickupsCount={pendingPickupsCount}
         onLogout={onLogout}
       />
 
@@ -147,6 +157,20 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
               title="Recargar datos"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+
+            <button
+              onClick={() => setIsPickupsOpen(true)}
+              className="relative flex items-center gap-2 px-3.5 py-2.5 text-xs sm:text-sm font-bold text-pink-300 bg-gradient-to-r from-pink-950/40 via-purple-950/30 to-dark-900 hover:from-pink-900/50 hover:to-purple-900/50 border border-pink-500/40 rounded-xl transition-all shadow-sm whitespace-nowrap shrink-0"
+              title="Solicitudes de Colecta y Link de Instagram"
+            >
+              <Instagram className="w-4 h-4 text-pink-400 shrink-0" />
+              <span>Colectas Instagram</span>
+              {pendingPickupsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-pink-500 text-white shadow animate-pulse">
+                  {pendingPickupsCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -467,10 +491,29 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
       {isFormModalOpen && (
         <OrderFormModal
           orderToEdit={orderToEdit}
-          onClose={() => setIsFormModalOpen(false)}
+          prefillPickup={prefillPickup}
+          onClose={() => {
+            setIsFormModalOpen(false);
+            setPrefillPickup(null);
+          }}
           onSuccess={(saved) => {
             setIsFormModalOpen(false);
+            setPrefillPickup(null);
             loadOrdersData();
+          }}
+        />
+      )}
+
+      {isPickupsOpen && (
+        <PickupRequestsModal
+          onClose={() => {
+            setIsPickupsOpen(false);
+            loadOrdersData();
+          }}
+          onConvertToOrder={(pickup) => {
+            setOrderToEdit(null);
+            setPrefillPickup(pickup);
+            setIsFormModalOpen(true);
           }}
         />
       )}

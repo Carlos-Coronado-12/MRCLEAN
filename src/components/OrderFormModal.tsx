@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus, Customer, Product } from '../types/database';
+import { Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus, Customer, Product, PickupRequest } from '../types/database';
 import { saveOrder, uploadOrderPhoto, fetchCustomers, fetchProducts } from '../services/orderService';
 import { X, Plus, Trash2, Camera, Upload, Loader2, Sparkles, UserCheck, ChevronDown } from 'lucide-react';
 
 interface OrderFormModalProps {
   orderToEdit?: Order | null;
+  prefillPickup?: PickupRequest | null;
   onClose: () => void;
   onSuccess: (savedOrder: Order) => void;
 }
@@ -30,18 +31,25 @@ interface ExtendedOrderItem extends Partial<OrderItem> {
 
 export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   orderToEdit,
+  prefillPickup,
   onClose,
   onSuccess
 }) => {
   const isEditing = Boolean(orderToEdit);
 
-  const [customerName, setCustomerName] = useState(orderToEdit?.customer_name || '');
-  const [customerPhone, setCustomerPhone] = useState(orderToEdit?.customer_phone || '52');
+  const [customerName, setCustomerName] = useState(
+    orderToEdit?.customer_name || prefillPickup?.customer_name || ''
+  );
+  const [customerPhone, setCustomerPhone] = useState(
+    orderToEdit?.customer_phone || prefillPickup?.customer_phone || '52'
+  );
   const [customersList, setCustomersList] = useState<Customer[]>([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
 
   const [receptionDate, setReceptionDate] = useState(
-    orderToEdit?.reception_date ? new Date(orderToEdit.reception_date).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16)
+    orderToEdit?.reception_date 
+      ? new Date(orderToEdit.reception_date).toISOString().slice(0, 16) 
+      : new Date().toISOString().slice(0, 16)
   );
   const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState(
     orderToEdit?.estimated_delivery_date || new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10)
@@ -56,7 +64,18 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
       ? String(orderToEdit.total_amount || 0) 
       : '0'
   );
-  const [notes, setNotes] = useState(orderToEdit?.notes || '');
+  const [notes, setNotes] = useState(() => {
+    if (orderToEdit?.notes) return orderToEdit.notes;
+    if (prefillPickup) {
+      const parts = [
+        `[Colecta #${prefillPickup.request_number || 'COL'}]`,
+        `📍 Dirección: ${prefillPickup.address}${prefillPickup.neighborhood ? `, Col. ${prefillPickup.neighborhood}` : ''}${prefillPickup.references ? ` (Ref: ${prefillPickup.references})` : ''}`,
+      ];
+      if (prefillPickup.notes) parts.push(`Notas: ${prefillPickup.notes}`);
+      return parts.join('\n');
+    }
+    return '';
+  });
 
   const [availableServices, setAvailableServices] = useState<ServiceItem[]>(MAIN_SERVICES);
 
@@ -102,11 +121,29 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   };
 
   // Sneakers items array
-  const [items, setItems] = useState<ExtendedOrderItem[]>(
-    orderToEdit?.order_items && orderToEdit.order_items.length > 0
-      ? orderToEdit.order_items.map(it => parseOrderItem(it))
-      : [parseOrderItem({ service_name: 'Limpieza Sencilla', price: 150 })]
-  );
+  const [items, setItems] = useState<ExtendedOrderItem[]>(() => {
+    if (orderToEdit?.order_items && orderToEdit.order_items.length > 0) {
+      return orderToEdit.order_items.map(it => parseOrderItem(it));
+    }
+    if (prefillPickup) {
+      const initialItems: ExtendedOrderItem[] = [];
+      const count = Math.max(1, prefillPickup.item_count || 1);
+      const serviceName = prefillPickup.services && prefillPickup.services[0] 
+        ? prefillPickup.services[0] 
+        : 'Limpieza Detallada';
+      
+      for (let i = 0; i < count; i++) {
+        initialItems.push(parseOrderItem({
+          brand_model: i === 0 && prefillPickup.shoes_details ? prefillPickup.shoes_details : '',
+          service_name: serviceName,
+          price: 200,
+          before_photos: i === 0 && prefillPickup.photos ? prefillPickup.photos : []
+        }));
+      }
+      return initialItems;
+    }
+    return [parseOrderItem({ service_name: 'Limpieza Sencilla', price: 150 })];
+  });
 
   const [uploadingIndex, setUploadingIndex] = useState<{ index: number; type: 'before' | 'after' } | null>(null);
   const [submitting, setSubmitting] = useState(false);

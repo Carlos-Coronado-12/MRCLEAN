@@ -1,16 +1,26 @@
 import React from 'react';
-import { Sparkles, Crown, LogOut, Settings, ShieldCheck, Database, UserCheck, Package } from 'lucide-react';
+import { Sparkles, Crown, LogOut, Settings, ShieldCheck, Database, UserCheck, Package, Instagram } from 'lucide-react';
 import { isDemoMode } from '../lib/supabaseClient';
 
 interface HeaderProps {
   onOpenSettings?: () => void;
   onOpenCustomers?: () => void;
   onOpenProducts?: () => void;
+  onOpenPickups?: () => void;
+  pendingPickupsCount?: number;
   onLogout?: () => void;
   isLoggedIn?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenSettings, onOpenCustomers, onOpenProducts, onLogout, isLoggedIn = true }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  onOpenSettings, 
+  onOpenCustomers, 
+  onOpenProducts, 
+  onOpenPickups,
+  pendingPickupsCount = 0,
+  onLogout, 
+  isLoggedIn = true 
+}) => {
   return (
     <header className="sticky top-0 z-40 bg-dark-900/90 backdrop-blur-md border-b border-gold-500/20 shadow-lg">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -47,6 +57,22 @@ export const Header: React.FC<HeaderProps> = ({ onOpenSettings, onOpenCustomers,
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                 Supabase En Vivo
               </span>
+            )}
+
+            {isLoggedIn && onOpenPickups && (
+              <button
+                onClick={onOpenPickups}
+                className="relative p-2 sm:px-3 sm:py-2 text-slate-200 hover:text-pink-300 bg-gradient-to-r from-pink-950/40 via-purple-950/40 to-dark-900 hover:from-pink-900/40 hover:to-purple-900/40 rounded-xl border border-pink-500/30 hover:border-pink-500/60 transition-all flex items-center gap-1.5 text-xs font-bold whitespace-nowrap shrink-0 shadow-sm"
+                title="Colectas a Domicilio y Link de Instagram"
+              >
+                <Instagram className="w-4 h-4 text-pink-400 shrink-0" />
+                <span className="hidden md:inline">Colectas</span>
+                {pendingPickupsCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow animate-pulse">
+                    {pendingPickupsCount}
+                  </span>
+                )}
+              </button>
             )}
 
             {isLoggedIn && onOpenProducts && (

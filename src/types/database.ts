@@ -63,3 +63,24 @@ export interface Product {
   updated_at?: string;
 }
 
+export type PickupStatus = 'pending' | 'confirmed' | 'collected' | 'cancelled';
+
+export interface PickupRequest {
+  id?: string;
+  request_number?: string;
+  customer_name: string;
+  customer_phone: string;
+  address: string;
+  neighborhood?: string;
+  references?: string;
+  preferred_date: string;
+  preferred_time_slot: string;
+  item_count: number;
+  services?: string[];
+  shoes_details?: string;
+  notes?: string;
+  photos?: string[];
+  status: PickupStatus;
+  created_at?: string;
+  updated_at?: string;
+}

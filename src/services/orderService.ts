@@ -1,10 +1,11 @@
 import { supabase, isDemoMode } from '../lib/supabaseClient';
-import { Order, OrderItem, OrderStatus, BusinessSettings, Customer, Product } from '../types/database';
+import { Order, OrderItem, OrderStatus, BusinessSettings, Customer, Product, PickupRequest, PickupStatus } from '../types/database';
 
 const LOCAL_STORAGE_ORDERS_KEY = 'mrclean_orders_db_v1';
 const LOCAL_STORAGE_SETTINGS_KEY = 'mrclean_settings_db_v1';
 const LOCAL_STORAGE_CUSTOMERS_KEY = 'mrclean_customers_db_v1';
 const LOCAL_STORAGE_PRODUCTS_KEY = 'mrclean_products_db_v1';
+const LOCAL_STORAGE_PICKUPS_KEY = 'mrclean_pickups_db_v1';
 
 // Datos iniciales de demostración en caso de no tener Supabase configurado aún
 const INITIAL_DEMO_ORDERS: Order[] = [
@@ -894,6 +895,241 @@ export async function deleteProduct(id: string): Promise<void> {
   } catch (err) {
     console.warn('Error eliminando producto en Supabase:', err);
   }
+}
+
+// ==========================================
+// SERVICIOS PARA SOLICITUDES DE COLECTA (INSTAGRAM / WEB)
+// ==========================================
+
+const INITIAL_DEMO_PICKUPS: PickupRequest[] = [
+  {
+    id: 'demo-pickup-1',
+    request_number: 'COL-00001',
+    customer_name: 'Alejandro Morales',
+    customer_phone: '526141234567',
+    address: 'Av. Las Águilas 4512',
+    neighborhood: 'Campestre',
+    references: 'Casa blanca con portón negro frente al parque',
+    preferred_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    preferred_time_slot: 'Mañana (9:00 AM - 1:00 PM)',
+    item_count: 2,
+    services: ['Limpieza Detallada', 'Blanqueamiento de suela'],
+    shoes_details: 'Nike Dunk Low Panda y Adidas Forum',
+    notes: 'Por favor avisar antes de llegar',
+    photos: [],
+    status: 'pending',
+    created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
+    updated_at: new Date(Date.now() - 3600000 * 3).toISOString()
+  }
+];
+
+function getLocalPickups(): PickupRequest[] {
+  const data = localStorage.getItem(LOCAL_STORAGE_PICKUPS_KEY);
+  if (!data) {
+    localStorage.setItem(LOCAL_STORAGE_PICKUPS_KEY, JSON.stringify(INITIAL_DEMO_PICKUPS));
+    return INITIAL_DEMO_PICKUPS;
+  }
+  try {
+    return JSON.parse(data);
+  } catch {
+    return INITIAL_DEMO_PICKUPS;
+  }
+}
+
+function saveLocalPickups(pickups: PickupRequest[]) {
+  localStorage.setItem(LOCAL_STORAGE_PICKUPS_KEY, JSON.stringify(pickups));
+}
+
+export async function fetchPickupRequests(): Promise<PickupRequest[]> {
+  if (isDemoMode) {
+    return getLocalPickups().sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('pickup_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      return getLocalPickups();
+    }
+    return data as PickupRequest[];
+  } catch (err) {
+    console.warn('Error al obtener colectas de Supabase (usando respaldo local):', err);
+    return getLocalPickups().sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  }
+}
+
+export async function createPickupRequest(
+  pickupData: Omit<PickupRequest, 'id' | 'created_at' | 'updated_at'>
+): Promise<PickupRequest> {
+  if (!pickupData.customer_name?.trim()) {
+    throw new Error('El nombre es obligatorio');
+  }
+  if (!pickupData.customer_phone?.trim()) {
+    throw new Error('El teléfono es obligatorio');
+  }
+  if (!pickupData.address?.trim()) {
+    throw new Error('La dirección es obligatoria');
+  }
+
+  const newPickup: PickupRequest = {
+    id: `pickup-${Date.now()}`,
+    request_number: `COL-${Math.floor(1000 + Math.random() * 9000)}`,
+    customer_name: pickupData.customer_name.trim(),
+    customer_phone: pickupData.customer_phone.trim(),
+    address: pickupData.address.trim(),
+    neighborhood: pickupData.neighborhood?.trim() || '',
+    references: pickupData.references?.trim() || '',
+    preferred_date: pickupData.preferred_date,
+    preferred_time_slot: pickupData.preferred_time_slot || 'Mañana (9:00 AM - 1:00 PM)',
+    item_count: pickupData.item_count || 1,
+    services: pickupData.services || [],
+    shoes_details: pickupData.shoes_details?.trim() || '',
+    notes: pickupData.notes?.trim() || '',
+    photos: pickupData.photos || [],
+    status: 'pending',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  // Guardar siempre en local como respaldo
+  const localPickups = getLocalPickups();
+  localPickups.unshift(newPickup);
+  saveLocalPickups(localPickups);
+
+  if (isDemoMode) {
+    return newPickup;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('pickup_requests')
+      .insert([{
+        customer_name: newPickup.customer_name,
+        customer_phone: newPickup.customer_phone,
+        address: newPickup.address,
+        neighborhood: newPickup.neighborhood,
+        references: newPickup.references,
+        preferred_date: newPickup.preferred_date,
+        preferred_time_slot: newPickup.preferred_time_slot,
+        item_count: newPickup.item_count,
+        services: newPickup.services,
+        shoes_details: newPickup.shoes_details,
+        notes: newPickup.notes,
+        photos: newPickup.photos,
+        status: 'pending'
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.warn('Error al guardar colecta en Supabase, guardado en respaldo local:', error);
+      return newPickup;
+    }
+
+    return data as PickupRequest;
+  } catch (err) {
+    console.warn('Error guardando colecta en Supabase, usando respaldo:', err);
+    return newPickup;
+  }
+}
+
+export async function updatePickupRequestStatus(id: string, status: PickupStatus): Promise<PickupRequest> {
+  const pickups = getLocalPickups();
+  const idx = pickups.findIndex(p => p.id === id);
+  if (idx !== -1) {
+    pickups[idx] = { ...pickups[idx], status, updated_at: new Date().toISOString() };
+    saveLocalPickups(pickups);
+  }
+
+  if (isDemoMode) {
+    return pickups[idx];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('pickup_requests')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as PickupRequest;
+  } catch (err) {
+    console.warn('Error actualizando estado de colecta en Supabase:', err);
+    return idx !== -1 ? pickups[idx] : ({ id, status } as any);
+  }
+}
+
+export async function deletePickupRequest(id: string): Promise<void> {
+  const pickups = getLocalPickups();
+  const filtered = pickups.filter(p => p.id !== id);
+  saveLocalPickups(filtered);
+
+  if (isDemoMode) return;
+
+  try {
+    const { error } = await supabase.from('pickup_requests').delete().eq('id', id);
+    if (error) console.warn('Aviso borrando colecta en Supabase:', error.message);
+  } catch (err) {
+    console.warn('Error eliminando colecta en Supabase:', err);
+  }
+}
+
+export function generatePickupWhatsAppStoreLink(pickup: PickupRequest, storePhone: string = '6147324931'): string {
+  let cleanStorePhone = storePhone.replace(/\D/g, '');
+  if (cleanStorePhone.length === 10) {
+    cleanStorePhone = '52' + cleanStorePhone;
+  }
+
+  const servicesList = pickup.services && pickup.services.length > 0 
+    ? pickup.services.join(', ') 
+    : 'Limpieza / Restauracion';
+
+  let text = `*SOLICITUD DE COLECTA A DOMICILIO - MR CLEAN SNEAKERS*\n\n`;
+  if (pickup.request_number) {
+    text += `*Folio:* #${pickup.request_number}\n`;
+  }
+  text += `*Cliente:* ${pickup.customer_name}\n`;
+  text += `*WhatsApp:* ${pickup.customer_phone}\n`;
+  text += `*Direccion:* ${pickup.address}\n`;
+  if (pickup.neighborhood) {
+    text += `*Colonia:* ${pickup.neighborhood}\n`;
+  }
+  if (pickup.references) {
+    text += `*Referencias:* ${pickup.references}\n`;
+  }
+  text += `*Fecha deseada:* ${pickup.preferred_date}\n`;
+  text += `*Turno/Horario:* ${pickup.preferred_time_slot}\n`;
+  text += `*Cantidad de pares/articulos:* ${pickup.item_count}\n`;
+  text += `*Servicios requeridos:* ${servicesList}\n`;
+  if (pickup.shoes_details) {
+    text += `*Modelos/Detalles:* ${pickup.shoes_details}\n`;
+  }
+  if (pickup.notes) {
+    text += `*Notas extras:* ${pickup.notes}\n`;
+  }
+  if (pickup.photos && pickup.photos.length > 0) {
+    text += `*Fotos adjuntas:* ${pickup.photos.length} imagen(es)\n`;
+  }
+  text += `\nEnviado desde el enlace de Instagram de Mr Clean Sneakers`;
+
+  return `https://wa.me/${cleanStorePhone}?text=${encodeURIComponent(text)}`;
+}
+
+export function generatePickupWhatsAppClientLink(pickup: PickupRequest): string {
+  let cleanClientPhone = pickup.customer_phone.replace(/\D/g, '');
+  if (cleanClientPhone.length === 10) {
+    cleanClientPhone = '52' + cleanClientPhone;
+  }
+
+  const text = `*MR CLEAN SNEAKERS*\n\nHola *${pickup.customer_name}*,\n\nRecibimos tu solicitud de colecta a domicilio para el dia *${pickup.preferred_date}* en el turno *${pickup.preferred_time_slot}*.\n\n*Direccion:* ${pickup.address}${pickup.neighborhood ? ` (${pickup.neighborhood})` : ''}\n*Articulos:* ${pickup.item_count} par(es)\n\n¿Nos confirmas si esta todo listo para pasar por ellos? Quedamos a tu orden.`;
+
+  return `https://wa.me/${cleanClientPhone}?text=${encodeURIComponent(text)}`;
 }
 
 

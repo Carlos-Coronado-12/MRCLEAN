@@ -221,3 +221,49 @@ CREATE POLICY "Public Delete Order Photos"
   ON storage.objects FOR DELETE
   TO anon, authenticated
   USING (bucket_id = 'orders-photos');
+
+-- ==========================================================
+-- 10. TABLA DE SOLICITUDES DE COLECTA (pickup_requests)
+-- Para agendar recolección desde Instagram / Web pública
+-- ==========================================================
+
+CREATE SEQUENCE IF NOT EXISTS pickup_number_seq START WITH 1 INCREMENT BY 1;
+
+CREATE TABLE IF NOT EXISTS public.pickup_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_number TEXT UNIQUE NOT NULL DEFAULT ('COL-' || LPAD(nextval('pickup_number_seq')::text, 5, '0')),
+  customer_name TEXT NOT NULL,
+  customer_phone TEXT NOT NULL,
+  address TEXT NOT NULL,
+  neighborhood TEXT,
+  references TEXT,
+  preferred_date DATE NOT NULL,
+  preferred_time_slot TEXT NOT NULL DEFAULT 'Mañana (9:00 AM - 1:00 PM)',
+  item_count INTEGER NOT NULL DEFAULT 1,
+  services TEXT[] DEFAULT '{}',
+  shoes_details TEXT,
+  notes TEXT,
+  photos TEXT[] DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'collected', 'cancelled')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pickup_customer_phone ON public.pickup_requests(customer_phone);
+CREATE INDEX IF NOT EXISTS idx_pickup_status ON public.pickup_requests(status);
+CREATE INDEX IF NOT EXISTS idx_pickup_preferred_date ON public.pickup_requests(preferred_date);
+
+DROP TRIGGER IF EXISTS update_pickup_requests_updated_at ON public.pickup_requests;
+CREATE TRIGGER update_pickup_requests_updated_at
+  BEFORE UPDATE ON public.pickup_requests
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE public.pickup_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public full control on pickup_requests" ON public.pickup_requests;
+CREATE POLICY "Public full control on pickup_requests"
+  ON public.pickup_requests FOR ALL
+  TO anon, authenticated
+  USING (true)
+  WITH CHECK (true);
