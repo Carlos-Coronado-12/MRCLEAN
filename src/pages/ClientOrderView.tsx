@@ -343,9 +343,26 @@ export const ClientOrderView: React.FC = () => {
           </div>
 
           {/* Total Summary */}
-          <div className="border-t border-dark-700 pt-4 flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Monto Total del Servicio</span>
-            <span className="text-2xl font-black text-gold-400 font-mono">${order.total_amount.toFixed(2)} MXN</span>
+          <div className="border-t border-dark-700 pt-4 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Monto Total del Servicio</span>
+              <span className="text-2xl font-black text-gold-400 font-mono">${order.total_amount.toFixed(2)} MXN</span>
+            </div>
+
+            {order.payment_status === 'partial' && (
+              <div className="bg-dark-950 p-3 rounded-xl border border-cyan-500/30 flex items-center justify-between text-xs font-mono">
+                <div>
+                  <span className="text-slate-400 block text-[11px]">Abono Recibido:</span>
+                  <span className="text-cyan-400 font-bold">${(order.paid_amount || 0).toFixed(2)} MXN</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-amber-400 font-bold block text-[11px] uppercase tracking-wider">Saldo Pendiente al Recoger:</span>
+                  <span className="text-base font-extrabold text-amber-400">
+                    ${Math.max(0, order.total_amount - (order.paid_amount || 0)).toFixed(2)} MXN
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

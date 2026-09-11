@@ -49,6 +49,13 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   const [status, setStatus] = useState<OrderStatus>(orderToEdit?.status || 'received');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(orderToEdit?.payment_method || 'pending');
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(orderToEdit?.payment_status || 'pending');
+  const [paidAmount, setPaidAmount] = useState<string>(
+    orderToEdit?.paid_amount !== undefined 
+      ? String(orderToEdit.paid_amount) 
+      : orderToEdit?.payment_status === 'paid' 
+      ? String(orderToEdit.total_amount || 0) 
+      : '0'
+  );
   const [notes, setNotes] = useState(orderToEdit?.notes || '');
 
   const [availableServices, setAvailableServices] = useState<ServiceItem[]>(MAIN_SERVICES);
@@ -105,8 +112,28 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Calculate Total Amount
+  // Calculate Total Amount and Payment Breakdown
   const totalAmount = items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+  const numericPaidAmount = paymentStatus === 'paid'
+    ? totalAmount
+    : paymentStatus === 'pending'
+    ? 0
+    : Math.max(0, Number(paidAmount) || 0);
+  const remainingBalance = Math.max(0, totalAmount - numericPaidAmount);
+
+  const handlePaymentStatusChange = (newStatus: PaymentStatus) => {
+    setPaymentStatus(newStatus);
+    if (newStatus === 'paid') {
+      setPaidAmount(String(totalAmount));
+    } else if (newStatus === 'pending') {
+      setPaidAmount('0');
+    } else if (newStatus === 'partial') {
+      const current = Number(paidAmount) || 0;
+      if (current === 0 || current >= totalAmount) {
+        setPaidAmount(String(Math.round(totalAmount / 2)));
+      }
+    }
+  };
 
   const handleAddItem = () => {
     const defaultSvc = availableServices[0] || MAIN_SERVICES[0];
@@ -229,6 +256,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
         payment_method: paymentMethod,
         payment_status: paymentStatus,
         total_amount: totalAmount,
+        paid_amount: numericPaidAmount,
         notes
       };
 
@@ -633,15 +661,84 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Estado del Pago</label>
                 <select
                   value={paymentStatus}
-                  onChange={e => setPaymentStatus(e.target.value as PaymentStatus)}
+                  onChange={e => handlePaymentStatusChange(e.target.value as PaymentStatus)}
                   className="w-full px-3 py-2 bg-dark-900 border border-dark-700 rounded-lg text-slate-100 text-xs focus:border-gold-400"
                 >
-                  <option value="pending">Pendiente</option>
-                  <option value="partial">Abono Parcial</option>
+                  <option value="pending">Pendiente (Sin pagar)</option>
+                  <option value="partial">Abono Parcial / Anticipo</option>
                   <option value="paid">Pagado Completo</option>
                 </select>
               </div>
             </div>
+
+            {/* Input y desglose interactivo de Abono Parcial */}
+            {paymentStatus === 'partial' && (
+              <div className="p-3.5 bg-dark-900/90 border border-cyan-500/40 rounded-xl space-y-3 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-cyan-400">
+                      Monto abonado / anticipo ($ MXN)
+                    </label>
+                    <span className="text-[11px] text-slate-400">
+                      Ingresa la cantidad recibida. El saldo restante se calculará automáticamente.
+                    </span>
+                  </div>
+
+                  {/* Botones de acción rápida */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPaidAmount(String(Math.round(totalAmount * 0.5)))}
+                      className="px-2.5 py-1 text-[11px] font-semibold bg-cyan-950 hover:bg-cyan-900 border border-cyan-500/30 text-cyan-300 rounded-lg transition-colors"
+                      title="Calcular 50% de anticipo"
+                    >
+                      50% (${Math.round(totalAmount * 0.5)})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaidAmount('')}
+                      className="px-2 py-1 text-[11px] text-slate-400 hover:text-white bg-dark-800 rounded-lg transition-colors"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">$</span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      max={totalAmount}
+                      placeholder="0.00"
+                      value={paidAmount}
+                      onChange={e => setPaidAmount(e.target.value)}
+                      className="w-full pl-7 pr-3 py-2 bg-dark-950 border border-cyan-500/50 rounded-lg text-sm font-bold text-white focus:outline-none focus:border-cyan-400"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 flex items-center justify-around bg-dark-950 p-2 rounded-lg border border-dark-700 text-xs">
+                    <div className="text-center">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Total</span>
+                      <span className="font-mono font-bold text-slate-200">${totalAmount.toFixed(2)}</span>
+                    </div>
+                    <span className="text-slate-500 font-bold">-</span>
+                    <div className="text-center">
+                      <span className="text-[10px] text-cyan-400 uppercase tracking-wider block">Abono</span>
+                      <span className="font-mono font-bold text-cyan-300">${numericPaidAmount.toFixed(2)}</span>
+                    </div>
+                    <span className="text-slate-500 font-bold">=</span>
+                    <div className="text-center">
+                      <span className="text-[10px] text-amber-400 uppercase tracking-wider block">Resta por pagar</span>
+                      <span className="font-mono font-extrabold text-amber-400">${remainingBalance.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">Notas del Pedido</label>
@@ -656,12 +753,29 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
           </div>
 
           {/* Summary Box */}
-          <div className="flex items-center justify-between p-4 bg-dark-950 rounded-xl border border-gold-500/30">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-dark-950 rounded-xl border border-gold-500/30">
             <div>
               <span className="text-xs text-slate-400">Total a Cobrar</span>
-              <p className="text-2xl font-extrabold text-gold-400 font-mono">${totalAmount.toFixed(2)} MXN</p>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <p className="text-2xl font-extrabold text-gold-400 font-mono">${totalAmount.toFixed(2)} MXN</p>
+                {paymentStatus === 'partial' && (
+                  <span className="text-xs font-bold text-amber-400 font-mono bg-amber-400/10 px-2.5 py-0.5 rounded-md border border-amber-400/30">
+                    Abonado: ${numericPaidAmount.toFixed(2)} | Resta: ${remainingBalance.toFixed(2)}
+                  </span>
+                )}
+                {paymentStatus === 'paid' && (
+                  <span className="text-xs font-bold text-emerald-400 font-mono bg-emerald-400/10 px-2.5 py-0.5 rounded-md border border-emerald-400/30">
+                    Liquidado ✓
+                  </span>
+                )}
+                {paymentStatus === 'pending' && (
+                  <span className="text-xs font-bold text-slate-400 font-mono bg-dark-800 px-2.5 py-0.5 rounded-md border border-dark-700">
+                    Sin abono previo
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <span className="text-xs text-slate-400">Pares incluidos:</span>
               <p className="text-sm font-bold text-white">{items.length} par(es)</p>
             </div>

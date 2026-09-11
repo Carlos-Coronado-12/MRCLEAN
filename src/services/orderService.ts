@@ -20,6 +20,7 @@ const INITIAL_DEMO_ORDERS: Order[] = [
     payment_method: 'transfer',
     payment_status: 'paid',
     total_amount: 400.00,
+    paid_amount: 400.00,
     notes: 'Tratamiento especial para gamuza negra. Cuidado extremo con el logo.',
     ready_notification_sent: false,
     delivered_notification_sent: false,
@@ -58,8 +59,9 @@ const INITIAL_DEMO_ORDERS: Order[] = [
     estimated_delivery_date: new Date(Date.now() - 86400000 * 1).toISOString().split('T')[0],
     status: 'ready',
     payment_method: 'cash',
-    payment_status: 'pending',
+    payment_status: 'partial',
     total_amount: 150.00,
+    paid_amount: 50.00,
     notes: 'Entregar en bolsa antipolvo.',
     ready_notification_sent: true,
     delivered_notification_sent: false,
@@ -190,6 +192,11 @@ export async function saveOrder(
       const token = generateRandomToken();
       
       const total = itemsData.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+      const paid = orderData.payment_status === 'paid' 
+        ? (orderData.paid_amount !== undefined && orderData.paid_amount > 0 ? orderData.paid_amount : total)
+        : orderData.payment_status === 'partial' 
+        ? (Number(orderData.paid_amount) || 0) 
+        : 0;
 
       updatedOrder = {
         id: `local-ord-${Date.now()}`,
@@ -203,6 +210,7 @@ export async function saveOrder(
         payment_method: orderData.payment_method || 'pending',
         payment_status: orderData.payment_status || 'pending',
         total_amount: total,
+        paid_amount: paid,
         notes: orderData.notes || '',
         ready_notification_sent: false,
         delivered_notification_sent: false,
@@ -234,6 +242,11 @@ export async function saveOrder(
   // Supabase real implementation
   try {
     const total = itemsData.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+    const paid = orderData.payment_status === 'paid' 
+      ? (orderData.paid_amount !== undefined && orderData.paid_amount > 0 ? orderData.paid_amount : total)
+      : orderData.payment_status === 'partial' 
+      ? (Number(orderData.paid_amount) || 0) 
+      : 0;
 
     let savedOrder: Order;
     if (isEditing) {
@@ -247,6 +260,7 @@ export async function saveOrder(
           payment_method: orderData.payment_method,
           payment_status: orderData.payment_status,
           total_amount: total,
+          paid_amount: paid,
           notes: orderData.notes
         })
         .eq('id', orderData.id)
@@ -282,6 +296,7 @@ export async function saveOrder(
           payment_method: orderData.payment_method || 'pending',
           payment_status: orderData.payment_status || 'pending',
           total_amount: total,
+          paid_amount: paid,
           notes: orderData.notes
         }])
         .select()
@@ -427,17 +442,32 @@ export function generateWhatsAppLink(
   const baseUrl = window.location.origin;
   const publicUrl = `${baseUrl}/pedido/${order.public_token}`;
 
+  const paid = order.payment_status === 'paid' ? order.total_amount : (order.paid_amount || 0);
+  const remaining = Math.max(0, order.total_amount - paid);
+
+  let paymentDetails = `*Total:* $${order.total_amount.toFixed(2)} MXN`;
+  if (order.payment_status === 'partial') {
+    paymentDetails = `*Total:* $${order.total_amount.toFixed(2)} MXN\n*Abono recibido:* $${paid.toFixed(2)} MXN\n*Saldo pendiente:* $${remaining.toFixed(2)} MXN`;
+  } else if (order.payment_status === 'paid') {
+    paymentDetails = `*Total:* $${order.total_amount.toFixed(2)} MXN (Pagado completo)`;
+  }
+
   let text = '';
   if (eventType === 'new_order') {
-    text = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*!\n\nYa recibimos tu pedido.\n\n*Orden:* #${order.order_number}\n*Total:* $${order.total_amount.toFixed(2)} MXN\n\nPuedes consultar el avance y fotos de tu pedido en tiempo real en el siguiente enlace:\n${publicUrl}\n\n¡Gracias por tu confianza!`;
+    text = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*!\n\nYa recibimos tu pedido.\n\n*Orden:* #${order.order_number}\n${paymentDetails}\n\nPuedes consultar el avance y fotos de tu pedido en tiempo real en el siguiente enlace:\n${publicUrl}\n\n¡Gracias por tu confianza!`;
   } else if (eventType === 'ready') {
-    text = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*!\n\nTus tenis han quedado listos y están preparados para entrega.\n\n*Orden:* #${order.order_number}\n*Estado:* LISTO PARA ENTREGA\n\nConsulta los detalles y fotos finales aquí:\n${publicUrl}\n\n¡Te esperamos en tienda!`;
+    const balanceNotice = order.payment_status === 'partial' 
+      ? `\n*Saldo pendiente por liquidar:* $${remaining.toFixed(2)} MXN`
+      : order.payment_status === 'pending'
+      ? `\n*Total a liquidar:* $${order.total_amount.toFixed(2)} MXN`
+      : '';
+    text = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*!\n\nTus tenis han quedado listos y están preparados para entrega.\n\n*Orden:* #${order.order_number}\n*Estado:* LISTO PARA ENTREGA${balanceNotice}\n\nConsulta los detalles y fotos finales aquí:\n${publicUrl}\n\n¡Te esperamos en tienda!`;
   } else if (eventType === 'delivered') {
     text = `*MR CLEAN SNEAKERS*\n\n¡Gracias por tu preferencia, *${order.customer_name}*!\n\nTu orden *#${order.order_number}* ha sido entregada con éxito. Esperamos que disfrutes tus tenis impecables.\n\n¡Esperamos verte pronto de nuevo!`;
   } else if (eventType === 'contact_store') {
     text = `*MR CLEAN SNEAKERS*\n\n¡Hola! Me gustaría hacer otro pedido.`;
   } else {
-    text = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*! Te compartimos el enlace oficial para consultar el avance de tu pedido en tiempo real:\n\n*Orden:* #${order.order_number}\n${publicUrl}`;
+    text = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*! Te compartimos el enlace oficial para consultar el avance de tu pedido en tiempo real:\n\n*Orden:* #${order.order_number}\n${paymentDetails}\n${publicUrl}`;
   }
 
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;

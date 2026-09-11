@@ -25,6 +25,7 @@ export interface Order {
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
   total_amount: number;
+  paid_amount?: number;
   notes: string | null;
   ready_notification_sent: boolean;
   delivered_notification_sent: boolean;

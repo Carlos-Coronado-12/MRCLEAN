@@ -131,6 +131,12 @@ export const QRModal: React.FC<QRModalProps> = ({ order, onClose }) => {
               <p className="text-slate-300"><strong>Tel:</strong> {order.customer_phone}</p>
               <p className="text-slate-300"><strong>Estado:</strong> <span className={statusInfo.text}>{statusInfo.label}</span></p>
               <p className="text-slate-300"><strong>Total:</strong> ${order.total_amount.toFixed(2)}</p>
+              {order.payment_status === 'partial' && (
+                <>
+                  <p className="text-cyan-400"><strong>Abonado:</strong> ${(order.paid_amount || 0).toFixed(2)}</p>
+                  <p className="text-amber-400 font-bold"><strong>Resta por pagar:</strong> ${Math.max(0, order.total_amount - (order.paid_amount || 0)).toFixed(2)}</p>
+                </>
+              )}
             </div>
           </div>
 

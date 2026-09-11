@@ -93,8 +93,17 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
   const inProgressCount = orders.filter(o => o.status === 'in_progress').length;
   const readyCount = orders.filter(o => o.status === 'ready').length;
   const deliveredCount = orders.filter(o => o.status === 'delivered').length;
-  const totalRevenue = orders.reduce((sum, o) => sum + (o.payment_status === 'paid' ? o.total_amount : 0), 0);
-  const pendingCollection = orders.reduce((sum, o) => sum + (o.payment_status !== 'paid' && o.status !== 'cancelled' ? o.total_amount : 0), 0);
+  const totalRevenue = orders.reduce((sum, o) => {
+    if (o.status === 'cancelled') return sum;
+    if (o.payment_status === 'paid') return sum + o.total_amount;
+    return sum + (o.paid_amount || 0);
+  }, 0);
+  const pendingCollection = orders.reduce((sum, o) => {
+    if (o.status === 'cancelled') return sum;
+    if (o.payment_status === 'paid') return sum;
+    const paid = o.paid_amount || 0;
+    return sum + Math.max(0, o.total_amount - paid);
+  }, 0);
 
   // Filtering orders
   const filteredOrders = orders.filter(o => {
@@ -351,11 +360,30 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
                         </td>
 
                         {/* Amount & Payment */}
-                        <td className="py-4 px-4">
-                          <p className="text-sm font-bold text-gold-400 font-mono">${order.total_amount.toFixed(2)}</p>
-                          <div className="mt-1">
-                            <PaymentStatusBadge status={order.payment_status} />
-                          </div>
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          {order.payment_status === 'partial' ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Resta</span>
+                                  <span className="text-base font-extrabold text-amber-400 font-mono">
+                                    ${Math.max(0, order.total_amount - (order.paid_amount || 0)).toFixed(2)}
+                                  </span>
+                                </div>
+                                <PaymentStatusBadge status={order.payment_status} />
+                              </div>
+                              <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5">
+                                <span>Tot: ${order.total_amount.toFixed(2)}</span>
+                                <span className="text-slate-600">•</span>
+                                <span className="text-cyan-400 font-medium">Abonó: ${(order.paid_amount || 0).toFixed(2)}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <p className="text-sm font-bold text-gold-400 font-mono">${order.total_amount.toFixed(2)}</p>
+                              <PaymentStatusBadge status={order.payment_status} />
+                            </div>
+                          )}
                         </td>
 
                         {/* Action buttons */}

@@ -37,12 +37,16 @@ CREATE TABLE IF NOT EXISTS public.orders (
   payment_method TEXT NOT NULL DEFAULT 'pending' CHECK (payment_method IN ('cash', 'transfer', 'card', 'pending')),
   payment_status TEXT NOT NULL DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'partial')),
   total_amount NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+  paid_amount NUMERIC(10,2) NOT NULL DEFAULT 0.00,
   notes TEXT,
   ready_notification_sent BOOLEAN NOT NULL DEFAULT FALSE,
   delivered_notification_sent BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Si la tabla ya existe, agregar la columna paid_amount:
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(10,2) NOT NULL DEFAULT 0.00;
 
 -- 5. Tabla de Ítems / Pares por Pedido (order_items)
 CREATE TABLE IF NOT EXISTS public.order_items (
