@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus, Customer, Product, PickupRequest } from '../types/database';
-import { saveOrder, uploadOrderPhoto, fetchCustomers, fetchProducts } from '../services/orderService';
-import { X, Plus, Trash2, Camera, Upload, Loader2, Sparkles, UserCheck, ChevronDown } from 'lucide-react';
+import { Order, OrderItem, OrderStatus, PaymentMethod, PaymentStatus, Customer, Product, PickupRequest, Promotion } from '../types/database';
+import { saveOrder, uploadOrderPhoto, fetchCustomers, fetchProducts, fetchPromotions } from '../services/orderService';
+import { X, Plus, Trash2, Camera, Upload, Loader2, Sparkles, UserCheck, ChevronDown, Tag, Flame, Percent, RotateCcw, Check, Gift, DollarSign } from 'lucide-react';
 
 interface OrderFormModalProps {
   orderToEdit?: Order | null;
@@ -78,6 +78,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
   });
 
   const [availableServices, setAvailableServices] = useState<ServiceItem[]>(MAIN_SERVICES);
+  const [activePromotions, setActivePromotions] = useState<Promotion[]>([]);
 
   useEffect(() => {
     fetchCustomers().then(data => setCustomersList(data)).catch(() => {});
@@ -90,6 +91,9 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
         }));
         setAvailableServices(mapped);
       }
+    }).catch(() => {});
+    fetchPromotions().then(promos => {
+      setActivePromotions(promos.filter(p => p.is_active));
     }).catch(() => {});
   }, []);
 
@@ -170,6 +174,145 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
         setPaidAmount(String(Math.round(totalAmount / 2)));
       }
     }
+  };
+
+  // Estado de promoción aplicada
+  const [appliedPromo, setAppliedPromo] = useState<{
+    id?: string;
+    title: string;
+    details: string;
+    type: string;
+  } | null>(null);
+
+  // Estado para descuento manual / personalizado
+  const [showCustomDiscount, setShowCustomDiscount] = useState(false);
+  const [customDiscountType, setCustomDiscountType] = useState<'percent' | 'fixed'>('fixed');
+  const [customDiscountValue, setCustomDiscountValue] = useState<string>('');
+
+  // Helper para obtener precio estándar según servicio
+  const getStandardBasePrice = (baseService?: string) => {
+    const sName = baseService || 'Limpieza Sencilla';
+    const match = availableServices.find(s => s.name === sName) || MAIN_SERVICES.find(s => s.name === sName);
+    return match ? match.price : (sName === 'Limpieza Detallada' ? 200 : 150);
+  };
+
+  // Restaurar precios estándar sin promoción
+  const handleResetPrices = () => {
+    const restored = items.map(item => {
+      const base = getStandardBasePrice(item.base_service);
+      return {
+        ...item,
+        price: base + (item.has_whitening ? EXTRA_WHITENING_PRICE : 0)
+      };
+    });
+    setItems(restored);
+    setAppliedPromo(null);
+  };
+
+  // Aplicar promoción específica
+  const handleApplyPromotion = (promo: Promotion) => {
+    if (promo.promo_type === 'bulk_pairs') {
+      const specialBase = promo.special_price_per_pair ?? 100;
+      const updated = items.map(item => ({
+        ...item,
+        price: specialBase + (item.has_whitening ? EXTRA_WHITENING_PRICE : 0)
+      }));
+      setItems(updated);
+      setAppliedPromo({
+        id: promo.id,
+        title: promo.title,
+        details: `$${specialBase} MXN por cada par`,
+        type: 'bulk_pairs'
+      });
+    } else if (promo.promo_type === 'percentage_discount') {
+      const discountPct = promo.discount_value ?? 15;
+      const multiplier = Math.max(0, (100 - discountPct) / 100);
+      const updated = items.map(item => {
+        const standardBase = getStandardBasePrice(item.base_service);
+        const discountedBase = Math.round(standardBase * multiplier);
+        return {
+          ...item,
+          price: discountedBase + (item.has_whitening ? EXTRA_WHITENING_PRICE : 0)
+        };
+      });
+      setItems(updated);
+      setAppliedPromo({
+        id: promo.id,
+        title: promo.title,
+        details: `${discountPct}% de descuento aplicado`,
+        type: 'percentage_discount'
+      });
+    } else if (promo.promo_type === 'fixed_discount') {
+      const discountTotal = promo.discount_value ?? 50;
+      const discountPerItem = Math.round(discountTotal / Math.max(1, items.length));
+      const updated = items.map(item => {
+        const standardBase = getStandardBasePrice(item.base_service);
+        const discountedBase = Math.max(0, standardBase - discountPerItem);
+        return {
+          ...item,
+          price: discountedBase + (item.has_whitening ? EXTRA_WHITENING_PRICE : 0)
+        };
+      });
+      setItems(updated);
+      setAppliedPromo({
+        id: promo.id,
+        title: promo.title,
+        details: `-$${discountTotal} MXN de descuento total`,
+        type: 'fixed_discount'
+      });
+    } else if (promo.promo_type === 'package_price') {
+      const pkgPrice = promo.package_price ?? 400;
+      const perItem = Math.round(pkgPrice / Math.max(1, items.length));
+      const updated = items.map(item => ({
+        ...item,
+        price: perItem + (item.has_whitening ? EXTRA_WHITENING_PRICE : 0)
+      }));
+      setItems(updated);
+      setAppliedPromo({
+        id: promo.id,
+        title: promo.title,
+        details: `Paquete especial $${pkgPrice} MXN`,
+        type: 'package_price'
+      });
+    }
+  };
+
+  // Aplicar descuento manual
+  const handleApplyCustomDiscount = (value: number, type: 'percent' | 'fixed') => {
+    if (value <= 0) return;
+    if (type === 'percent') {
+      const pct = Math.min(100, value);
+      const multiplier = (100 - pct) / 100;
+      const updated = items.map(item => {
+        const standardBase = getStandardBasePrice(item.base_service);
+        return {
+          ...item,
+          price: Math.round(standardBase * multiplier) + (item.has_whitening ? EXTRA_WHITENING_PRICE : 0)
+        };
+      });
+      setItems(updated);
+      setAppliedPromo({
+        title: `Descuento Manual ${pct}%`,
+        details: `${pct}% de descuento personalizado`,
+        type: 'custom'
+      });
+    } else {
+      const discountPerItem = Math.round(value / Math.max(1, items.length));
+      const updated = items.map(item => {
+        const standardBase = getStandardBasePrice(item.base_service);
+        return {
+          ...item,
+          price: Math.max(0, standardBase - discountPerItem) + (item.has_whitening ? EXTRA_WHITENING_PRICE : 0)
+        };
+      });
+      setItems(updated);
+      setAppliedPromo({
+        title: `Descuento Manual $${value} MXN`,
+        details: `-$${value} MXN personalizado`,
+        type: 'custom'
+      });
+    }
+    setShowCustomDiscount(false);
   };
 
   const handleAddItem = () => {
@@ -283,6 +426,12 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
     setErrorMsg('');
 
     try {
+      let finalNotes = notes;
+      if (appliedPromo && !finalNotes.includes(appliedPromo.title)) {
+        const promoTag = `[Promo: ${appliedPromo.title} - ${appliedPromo.details}]`;
+        finalNotes = finalNotes ? `${finalNotes}\n${promoTag}` : promoTag;
+      }
+
       const orderPayload: Partial<Order> = {
         id: orderToEdit?.id,
         customer_name: customerName,
@@ -294,7 +443,7 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
         payment_status: paymentStatus,
         total_amount: totalAmount,
         paid_amount: numericPaidAmount,
-        notes
+        notes: finalNotes
       };
 
       const savedOrder = await saveOrder(orderPayload, items);
@@ -660,9 +809,264 @@ export const OrderFormModal: React.FC<OrderFormModalProps> = ({
             ))}
           </div>
 
-          {/* Seccion 3: Estado, Pago y Notas */}
+          {/* Seccion 3: Promociones y Descuentos */}
           <div className="bg-dark-950 p-4 rounded-xl border border-dark-700 space-y-4">
-            <h4 className="font-bold text-gold-400 text-xs uppercase tracking-wider">3. Estado, Pago y Notas</h4>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-gold-500/15 text-gold-400">
+                  <Tag className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-gold-400 text-xs uppercase tracking-wider">
+                    3. Promociones y Descuentos
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Aplica promociones activas del negocio o descuentos personalizados a esta orden
+                  </p>
+                </div>
+              </div>
+
+              {appliedPromo && (
+                <button
+                  type="button"
+                  onClick={handleResetPrices}
+                  className="px-2.5 py-1 text-[11px] font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-lg flex items-center gap-1.5 transition-all"
+                  title="Restablecer precios estándar"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Quitar Promo</span>
+                </button>
+              )}
+            </div>
+
+            {/* Banner de Promoción Activa Aplicada */}
+            {appliedPromo && (
+              <div className="p-3 bg-gradient-to-r from-emerald-950/80 via-dark-900 to-dark-950 border border-emerald-500/50 rounded-xl flex items-center justify-between gap-3 animate-fadeIn shadow-md">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm border border-emerald-500/40">
+                    <Check className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-emerald-300">{appliedPromo.title}</span>
+                      <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 bg-emerald-500/30 text-emerald-200 rounded">
+                        Activa
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-300 block">{appliedPromo.details}</span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 block">Total con Promo:</span>
+                  <span className="text-sm font-extrabold text-gold-400 font-mono">${totalAmount.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Listado de Promociones Disponibles */}
+            {activePromotions.length > 0 ? (
+              <div className="space-y-2">
+                <span className="text-[11px] font-semibold text-slate-300 block">
+                  Promociones del Negocio Disponibles ({activePromotions.length}):
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {activePromotions.map(promo => {
+                    const isBulk = promo.promo_type === 'bulk_pairs';
+                    const minPairs = promo.min_pairs || 5;
+                    const isEligible = isBulk ? items.length >= minPairs : true;
+                    const isCurrentApplied = appliedPromo?.id === promo.id;
+
+                    return (
+                      <div
+                        key={promo.id || promo.title}
+                        className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2.5 ${
+                          isCurrentApplied
+                            ? 'bg-emerald-950/30 border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                            : isEligible
+                            ? 'bg-dark-900 border-gold-500/30 hover:border-gold-500/60'
+                            : 'bg-dark-900/60 border-dark-800 opacity-75'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5">
+                              {isBulk ? (
+                                <Flame className="w-3.5 h-3.5 text-amber-400" />
+                              ) : promo.promo_type === 'percentage_discount' ? (
+                                <Percent className="w-3.5 h-3.5 text-gold-400" />
+                              ) : (
+                                <Gift className="w-3.5 h-3.5 text-cyan-400" />
+                              )}
+                              <span className="text-xs font-bold text-slate-100">{promo.title}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 line-clamp-2">
+                              {promo.description || (
+                                isBulk
+                                  ? `A partir de ${minPairs} pares quedan a $${promo.special_price_per_pair} c/u`
+                                  : promo.promo_type === 'percentage_discount'
+                                  ? `${promo.discount_value}% de descuento`
+                                  : `Paquete especial por $${promo.package_price}`
+                              )}
+                            </p>
+                          </div>
+
+                          {promo.highlight_badge && (
+                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-gold-500/20 text-gold-400 border border-gold-500/30 shrink-0">
+                              {promo.highlight_badge}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-dark-800">
+                          <span className="text-[10px] text-slate-400">
+                            {isBulk ? (
+                              isEligible ? (
+                                <span className="text-emerald-400 font-semibold">✓ Califica ({items.length}/{minPairs} pares)</span>
+                              ) : (
+                                <span className="text-amber-400/90 font-medium">Faltan {minPairs - items.length} par(es)</span>
+                              )
+                            ) : (
+                              <span className="text-slate-400">Aplica a toda la orden</span>
+                            )}
+                          </span>
+
+                          <button
+                            type="button"
+                            disabled={!isEligible}
+                            onClick={() => handleApplyPromotion(promo)}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                              isCurrentApplied
+                                ? 'bg-emerald-500 text-dark-950 cursor-default'
+                                : isEligible
+                                ? 'bg-gold-500 hover:bg-gold-400 text-dark-950 shadow-sm active:scale-95'
+                                : 'bg-dark-800 text-slate-500 cursor-not-allowed'
+                            }`}
+                          >
+                            {isCurrentApplied
+                              ? '✓ Aplicada'
+                              : isBulk
+                              ? `Aplicar $${promo.special_price_per_pair}/par`
+                              : promo.promo_type === 'percentage_discount'
+                              ? `Aplicar -${promo.discount_value}%`
+                              : `Aplicar $${promo.package_price}`}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 italic">
+                No hay promociones registradas en el catálogo. Puedes crear nuevas en el botón «Promociones» del menú.
+              </p>
+            )}
+
+            {/* Sección de Descuento Manual / Personalizado */}
+            <div className="pt-2 border-t border-dark-800">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomDiscount(!showCustomDiscount)}
+                  className="text-xs font-bold text-slate-300 hover:text-gold-400 flex items-center gap-1.5 transition-colors"
+                >
+                  <DollarSign className="w-3.5 h-3.5 text-gold-400" />
+                  <span>{showCustomDiscount ? '▼ Ocultar Descuento Manual' : '▶ Aplicar Descuento Manual / Personalizado'}</span>
+                </button>
+                
+                {!showCustomDiscount && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCustomDiscount(10, 'percent')}
+                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-dark-900 hover:bg-gold-500/20 text-slate-300 hover:text-gold-300 border border-dark-700 hover:border-gold-500/40 transition-colors"
+                    >
+                      -10%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCustomDiscount(15, 'percent')}
+                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-dark-900 hover:bg-gold-500/20 text-slate-300 hover:text-gold-300 border border-dark-700 hover:border-gold-500/40 transition-colors"
+                    >
+                      -15%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCustomDiscount(50, 'fixed')}
+                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-dark-900 hover:bg-gold-500/20 text-slate-300 hover:text-gold-300 border border-dark-700 hover:border-gold-500/40 transition-colors"
+                    >
+                      -$50
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {showCustomDiscount && (
+                <div className="mt-3 p-3 bg-dark-900 rounded-xl border border-dark-700 space-y-3 animate-fadeIn">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-300 mb-1">Tipo de Descuento</label>
+                      <div className="flex rounded-lg overflow-hidden border border-dark-700">
+                        <button
+                          type="button"
+                          onClick={() => setCustomDiscountType('fixed')}
+                          className={`flex-1 py-1.5 text-xs font-bold transition-colors ${
+                            customDiscountType === 'fixed'
+                              ? 'bg-gold-500 text-dark-950'
+                              : 'bg-dark-950 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          $ Monto Fijo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCustomDiscountType('percent')}
+                          className={`flex-1 py-1.5 text-xs font-bold transition-colors ${
+                            customDiscountType === 'percent'
+                              ? 'bg-gold-500 text-dark-950'
+                              : 'bg-dark-950 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          % Porcentaje
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                        Valor {customDiscountType === 'fixed' ? '($ MXN)' : '(%)'}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder={customDiscountType === 'fixed' ? 'Ej. 50' : 'Ej. 15'}
+                        value={customDiscountValue}
+                        onChange={e => setCustomDiscountValue(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-dark-950 border border-dark-700 rounded-lg text-xs text-slate-100 focus:border-gold-400 font-mono"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCustomDiscount(Number(customDiscountValue) || 0, customDiscountType)}
+                      disabled={!customDiscountValue || Number(customDiscountValue) <= 0}
+                      className="w-full py-1.5 px-3 bg-gradient-to-r from-gold-500 to-amber-500 hover:from-gold-400 hover:to-amber-400 disabled:opacity-50 text-dark-950 text-xs font-bold rounded-lg transition-all shadow-sm"
+                    >
+                      Aplicar Descuento
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* Seccion 4: Estado, Pago y Notas */}
+          <div className="bg-dark-950 p-4 rounded-xl border border-dark-700 space-y-4">
+            <h4 className="font-bold text-gold-400 text-xs uppercase tracking-wider">4. Estado, Pago y Notas</h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>

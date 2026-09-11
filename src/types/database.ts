@@ -84,3 +84,20 @@ export interface PickupRequest {
   created_at?: string;
   updated_at?: string;
 }
+
+export type PromoType = 'bulk_pairs' | 'fixed_discount' | 'percentage_discount' | 'package_price';
+
+export interface Promotion {
+  id?: string;
+  title: string;
+  description?: string | null;
+  promo_type: PromoType;
+  min_pairs?: number;
+  special_price_per_pair?: number;
+  discount_value?: number;
+  package_price?: number;
+  is_active: boolean;
+  highlight_badge?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}

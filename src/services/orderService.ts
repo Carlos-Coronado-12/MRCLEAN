@@ -1,11 +1,12 @@
 import { supabase, isDemoMode } from '../lib/supabaseClient';
-import { Order, OrderItem, OrderStatus, BusinessSettings, Customer, Product, PickupRequest, PickupStatus } from '../types/database';
+import { Order, OrderItem, OrderStatus, BusinessSettings, Customer, Product, PickupRequest, PickupStatus, Promotion, PromoType } from '../types/database';
 
 const LOCAL_STORAGE_ORDERS_KEY = 'mrclean_orders_db_v1';
 const LOCAL_STORAGE_SETTINGS_KEY = 'mrclean_settings_db_v1';
 const LOCAL_STORAGE_CUSTOMERS_KEY = 'mrclean_customers_db_v1';
 const LOCAL_STORAGE_PRODUCTS_KEY = 'mrclean_products_db_v1';
 const LOCAL_STORAGE_PICKUPS_KEY = 'mrclean_pickups_db_v1';
+const LOCAL_STORAGE_PROMOTIONS_KEY = 'mrclean_promotions_db_v1';
 
 // Datos iniciales de demostración en caso de no tener Supabase configurado aún
 const INITIAL_DEMO_ORDERS: Order[] = [
@@ -1130,6 +1131,236 @@ export function generatePickupWhatsAppClientLink(pickup: PickupRequest): string 
   const text = `*MR CLEAN SNEAKERS*\n\nHola *${pickup.customer_name}*,\n\nRecibimos tu solicitud de colecta a domicilio para el dia *${pickup.preferred_date}* en el turno *${pickup.preferred_time_slot}*.\n\n*Direccion:* ${pickup.address}${pickup.neighborhood ? ` (${pickup.neighborhood})` : ''}\n*Articulos:* ${pickup.item_count} par(es)\n\n¿Nos confirmas si esta todo listo para pasar por ellos? Quedamos a tu orden.`;
 
   return `https://wa.me/${cleanClientPhone}?text=${encodeURIComponent(text)}`;
+}
+
+// ==========================================
+// SERVICIOS PARA PROMOCIONES Y OFERTAS
+// ==========================================
+
+const INITIAL_DEMO_PROMOTIONS: Promotion[] = [
+  {
+    id: 'promo-demo-1',
+    title: 'Promo 5+ Pares a $100 c/u',
+    description: 'A partir de 5 pares tu limpieza queda a solo $100 cada par',
+    promo_type: 'bulk_pairs',
+    min_pairs: 5,
+    special_price_per_pair: 100.00,
+    is_active: true,
+    highlight_badge: 'SUPER PROMO',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'promo-demo-2',
+    title: 'Combo 3 Pares por $400',
+    description: 'Trae 3 pares y paga solo $400 en total (Ahorra hasta $200)',
+    promo_type: 'package_price',
+    min_pairs: 3,
+    package_price: 400.00,
+    is_active: true,
+    highlight_badge: 'POPULAR',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
+function getLocalPromotions(): Promotion[] {
+  const data = localStorage.getItem(LOCAL_STORAGE_PROMOTIONS_KEY);
+  if (!data) {
+    localStorage.setItem(LOCAL_STORAGE_PROMOTIONS_KEY, JSON.stringify(INITIAL_DEMO_PROMOTIONS));
+    return INITIAL_DEMO_PROMOTIONS;
+  }
+  try {
+    return JSON.parse(data);
+  } catch {
+    return INITIAL_DEMO_PROMOTIONS;
+  }
+}
+
+function saveLocalPromotions(promotions: Promotion[]) {
+  localStorage.setItem(LOCAL_STORAGE_PROMOTIONS_KEY, JSON.stringify(promotions));
+}
+
+export async function fetchPromotions(): Promise<Promotion[]> {
+  if (isDemoMode) {
+    return getLocalPromotions();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('promotions')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      return getLocalPromotions();
+    }
+    return data as Promotion[];
+  } catch (err) {
+    console.warn('Error al obtener promociones de Supabase (usando respaldo local):', err);
+    return getLocalPromotions();
+  }
+}
+
+export async function savePromotion(promoData: Partial<Promotion>): Promise<Promotion> {
+  if (!promoData.title?.trim()) {
+    throw new Error('El título de la promoción es obligatorio');
+  }
+
+  const isEditing = Boolean(promoData.id);
+
+  if (isDemoMode) {
+    const promos = getLocalPromotions();
+    let updated: Promotion;
+    if (isEditing) {
+      const idx = promos.findIndex(p => p.id === promoData.id);
+      updated = {
+        ...(promos[idx] || {}),
+        ...promoData,
+        updated_at: new Date().toISOString()
+      } as Promotion;
+      if (idx !== -1) promos[idx] = updated;
+    } else {
+      updated = {
+        id: `promo-local-${Date.now()}`,
+        title: promoData.title.trim(),
+        description: promoData.description || '',
+        promo_type: promoData.promo_type || 'bulk_pairs',
+        min_pairs: Number(promoData.min_pairs) || 5,
+        special_price_per_pair: promoData.special_price_per_pair !== undefined ? Number(promoData.special_price_per_pair) : 100,
+        discount_value: promoData.discount_value !== undefined ? Number(promoData.discount_value) : 0,
+        package_price: promoData.package_price !== undefined ? Number(promoData.package_price) : 0,
+        is_active: promoData.is_active !== undefined ? promoData.is_active : true,
+        highlight_badge: promoData.highlight_badge || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      promos.unshift(updated);
+    }
+    saveLocalPromotions(promos);
+    return updated;
+  }
+
+  try {
+    let saved: Promotion;
+    if (isEditing) {
+      const { data, error } = await supabase
+        .from('promotions')
+        .update({
+          title: promoData.title.trim(),
+          description: promoData.description || null,
+          promo_type: promoData.promo_type || 'bulk_pairs',
+          min_pairs: Number(promoData.min_pairs) || 5,
+          special_price_per_pair: promoData.special_price_per_pair !== undefined ? Number(promoData.special_price_per_pair) : 100,
+          discount_value: promoData.discount_value !== undefined ? Number(promoData.discount_value) : 0,
+          package_price: promoData.package_price !== undefined ? Number(promoData.package_price) : 0,
+          is_active: promoData.is_active !== undefined ? promoData.is_active : true,
+          highlight_badge: promoData.highlight_badge || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', promoData.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      saved = data;
+    } else {
+      const { data, error } = await supabase
+        .from('promotions')
+        .insert([{
+          title: promoData.title.trim(),
+          description: promoData.description || null,
+          promo_type: promoData.promo_type || 'bulk_pairs',
+          min_pairs: Number(promoData.min_pairs) || 5,
+          special_price_per_pair: promoData.special_price_per_pair !== undefined ? Number(promoData.special_price_per_pair) : 100,
+          discount_value: promoData.discount_value !== undefined ? Number(promoData.discount_value) : 0,
+          package_price: promoData.package_price !== undefined ? Number(promoData.package_price) : 0,
+          is_active: promoData.is_active !== undefined ? promoData.is_active : true,
+          highlight_badge: promoData.highlight_badge || null
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      saved = data;
+    }
+    return saved;
+  } catch (err) {
+    console.warn('Error guardando promoción en Supabase, usando respaldo:', err);
+    const promos = getLocalPromotions();
+    let updated: Promotion;
+    if (isEditing) {
+      const idx = promos.findIndex(p => p.id === promoData.id);
+      updated = {
+        ...(promos[idx] || {}),
+        ...promoData,
+        updated_at: new Date().toISOString()
+      } as Promotion;
+      if (idx !== -1) promos[idx] = updated;
+    } else {
+      updated = {
+        id: `promo-local-${Date.now()}`,
+        title: promoData.title.trim(),
+        description: promoData.description || '',
+        promo_type: promoData.promo_type || 'bulk_pairs',
+        min_pairs: Number(promoData.min_pairs) || 5,
+        special_price_per_pair: promoData.special_price_per_pair !== undefined ? Number(promoData.special_price_per_pair) : 100,
+        discount_value: promoData.discount_value !== undefined ? Number(promoData.discount_value) : 0,
+        package_price: promoData.package_price !== undefined ? Number(promoData.package_price) : 0,
+        is_active: promoData.is_active !== undefined ? promoData.is_active : true,
+        highlight_badge: promoData.highlight_badge || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      promos.unshift(updated);
+    }
+    saveLocalPromotions(promos);
+    return updated;
+  }
+}
+
+export async function togglePromotionActive(id: string, is_active: boolean): Promise<Promotion> {
+  const promos = getLocalPromotions();
+  const idx = promos.findIndex(p => p.id === id);
+  if (idx !== -1) {
+    promos[idx] = { ...promos[idx], is_active, updated_at: new Date().toISOString() };
+    saveLocalPromotions(promos);
+  }
+
+  if (isDemoMode) {
+    return promos[idx];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('promotions')
+      .update({ is_active, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as Promotion;
+  } catch (err) {
+    console.warn('Error cambiando estado activo de promo en Supabase:', err);
+    return idx !== -1 ? promos[idx] : ({ id, is_active } as any);
+  }
+}
+
+export async function deletePromotion(id: string): Promise<void> {
+  const promos = getLocalPromotions();
+  const filtered = promos.filter(p => p.id !== id);
+  saveLocalPromotions(filtered);
+
+  if (isDemoMode) return;
+
+  try {
+    const { error } = await supabase.from('promotions').delete().eq('id', id);
+    if (error) console.warn('Aviso borrando promoción en Supabase:', error.message);
+  } catch (err) {
+    console.warn('Error eliminando promoción en Supabase:', err);
+  }
 }
 
 

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Calendar, Clock, MapPin, Phone, User, Package, Plus, Minus, Camera, Trash2, CheckCircle2, ShieldCheck, ArrowRight, RefreshCw } from 'lucide-react';
+import { Sparkles, Calendar, Clock, MapPin, Phone, User, Package, Plus, Minus, Camera, Trash2, CheckCircle2, ShieldCheck, ArrowRight, RefreshCw, Tag, Flame, Percent } from 'lucide-react';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
-import { createPickupRequest, fetchBusinessSettings, fetchProducts, uploadOrderPhoto, generatePickupWhatsAppStoreLink } from '../services/orderService';
-import { PickupRequest, Product } from '../types/database';
+import { createPickupRequest, fetchBusinessSettings, fetchProducts, fetchPromotions, uploadOrderPhoto, generatePickupWhatsAppStoreLink } from '../services/orderService';
+import { PickupRequest, Product, Promotion } from '../types/database';
 import confetti from 'canvas-confetti';
 
 const TIME_SLOTS = [
@@ -19,6 +19,7 @@ interface PickupPairItem {
 export const SchedulePickupPage: React.FC = () => {
   const [storePhone, setStorePhone] = useState<string>('6147324931');
   const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   
   // Form fields
   const [customerName, setCustomerName] = useState('');
@@ -51,15 +52,19 @@ export const SchedulePickupPage: React.FC = () => {
 
   const loadStoreData = async () => {
     try {
-      const [settings, prods] = await Promise.all([
+      const [settings, prods, promos] = await Promise.all([
         fetchBusinessSettings(),
-        fetchProducts()
+        fetchProducts(),
+        fetchPromotions()
       ]);
       if (settings?.store_phone) {
         setStorePhone(settings.store_phone);
       }
       if (prods && prods.length > 0) {
         setAvailableProducts(prods);
+      }
+      if (promos && promos.length > 0) {
+        setPromotions(promos.filter(p => p.is_active));
       }
     } catch (e) {
       console.error('Error cargando datos de la tienda:', e);
@@ -380,6 +385,67 @@ export const SchedulePickupPage: React.FC = () => {
           </p>
         </div>
 
+        {/* Banner de Promociones Activas */}
+        {promotions.length > 0 && (
+          <div className="mb-6 space-y-2.5">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-gold-400 uppercase tracking-wider px-1">
+              <Flame className="w-4 h-4 text-amber-400 animate-pulse" />
+              <span>Promociones Especiales Disponibles</span>
+            </div>
+            <div className="grid grid-cols-1 gap-2.5">
+              {promotions.map(promo => (
+                <div
+                  key={promo.id || promo.title}
+                  className="bg-gradient-to-r from-dark-900 via-dark-900/90 to-dark-950 border border-gold-500/40 rounded-2xl p-3.5 sm:p-4 shadow-lg flex items-center justify-between gap-3 relative overflow-hidden group"
+                >
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/5 rounded-full blur-xl pointer-events-none group-hover:bg-gold-500/10 transition-colors" />
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold-500/20 to-amber-500/10 border border-gold-500/30 flex items-center justify-center text-gold-400 shrink-0">
+                      {promo.promo_type === 'bulk_pairs' ? (
+                        <Package className="w-5 h-5" />
+                      ) : promo.promo_type === 'percentage_discount' ? (
+                        <Percent className="w-5 h-5" />
+                      ) : (
+                        <Tag className="w-5 h-5" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-100">{promo.title}</span>
+                        {promo.highlight_badge && (
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-gradient-to-r from-amber-500 to-gold-500 text-dark-950 uppercase tracking-wider">
+                            {promo.highlight_badge}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {promo.description || (
+                          promo.promo_type === 'bulk_pairs'
+                            ? `A partir de ${promo.min_pairs} pares pagan sólo $${promo.special_price_per_pair} c/u`
+                            : promo.promo_type === 'percentage_discount'
+                            ? `${promo.discount_value}% de descuento`
+                            : `Paquete especial por $${promo.package_price}`
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {promo.promo_type === 'bulk_pairs' && (
+                    <button
+                      type="button"
+                      onClick={() => handleSetItemCount(promo.min_pairs || 5)}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gold-500/15 hover:bg-gold-500/25 text-gold-300 border border-gold-500/40 transition-all shrink-0 active:scale-95"
+                    >
+                      Pedir {promo.min_pairs} pares
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Booking Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           
@@ -565,6 +631,42 @@ export const SchedulePickupPage: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Indicador de calificación de promociones por volumen */}
+              {(() => {
+                const bulkPromo = promotions.find(p => p.promo_type === 'bulk_pairs' && (p.min_pairs || 0) > 0);
+                if (!bulkPromo) return null;
+                const min = bulkPromo.min_pairs || 5;
+                const qualifies = itemCount >= min;
+
+                return qualifies ? (
+                  <div className="bg-emerald-500/10 border border-emerald-500/40 rounded-xl p-3 flex items-center justify-between gap-2 text-xs animate-fadeIn">
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-400 font-bold">✨ ¡Aplica Promo {bulkPromo.title}!</span>
+                      <span className="text-slate-300 text-[11px]">Tus pares quedan a <strong className="text-emerald-300 font-mono">${bulkPromo.special_price_per_pair} MXN</strong> c/u</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                      Ahorro Activado
+                    </span>
+                  </div>
+                ) : (
+                  <div className="bg-gradient-to-r from-gold-500/10 via-dark-900 to-dark-950 border border-gold-500/30 rounded-xl p-3 flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Flame className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+                      <span className="text-slate-300 text-[11px]">
+                        Agrega <strong className="text-gold-300 font-mono">{min - itemCount} par(es) más</strong> para pagar sólo <strong className="text-gold-300 font-mono">${bulkPromo.special_price_per_pair}</strong> cada par
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSetItemCount(min)}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gold-500 hover:bg-gold-400 text-dark-950 transition-all shrink-0 shadow-sm"
+                    >
+                      Activar {min} pares
+                    </button>
+                  </div>
+                );
+              })()}
 
               {/* Servicios requeridos */}
               <div>

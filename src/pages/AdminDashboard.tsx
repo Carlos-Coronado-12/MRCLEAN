@@ -8,6 +8,7 @@ import { QRModal } from '../components/QRModal';
 import { SettingsModal } from '../components/SettingsModal';
 import { CustomersModal } from '../components/CustomersModal';
 import { ProductsModal } from '../components/ProductsModal';
+import { PromotionsModal } from '../components/PromotionsModal';
 import { PickupRequestsModal } from '../components/PickupRequestsModal';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import {
@@ -31,6 +32,7 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCustomersOpen, setIsCustomersOpen] = useState(false);
   const [isProductsOpen, setIsProductsOpen] = useState(false);
+  const [isPromotionsOpen, setIsPromotionsOpen] = useState(false);
   const [isPickupsOpen, setIsPickupsOpen] = useState(false);
   const [pendingPickupsCount, setPendingPickupsCount] = useState(0);
 
@@ -131,6 +133,7 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
       <Header
         onOpenCustomers={() => setIsCustomersOpen(true)}
         onOpenProducts={() => setIsProductsOpen(true)}
+        onOpenPromotions={() => setIsPromotionsOpen(true)}
         onOpenPickups={() => setIsPickupsOpen(true)}
         pendingPickupsCount={pendingPickupsCount}
         onLogout={onLogout}
@@ -171,6 +174,15 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
                   {pendingPickupsCount}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setIsPromotionsOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-2.5 text-xs sm:text-sm font-bold text-amber-300 bg-dark-900 hover:bg-dark-800 border border-amber-500/40 rounded-xl transition-all shadow-sm whitespace-nowrap shrink-0"
+              title="Gestión de Promociones y Descuentos"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Promociones</span>
             </button>
 
             <button
@@ -541,6 +553,12 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
       {isProductsOpen && (
         <ProductsModal
           onClose={() => setIsProductsOpen(false)}
+        />
+      )}
+
+      {isPromotionsOpen && (
+        <PromotionsModal
+          onClose={() => setIsPromotionsOpen(false)}
         />
       )}
 

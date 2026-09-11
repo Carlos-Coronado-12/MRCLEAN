@@ -6,6 +6,7 @@ interface HeaderProps {
   onOpenSettings?: () => void;
   onOpenCustomers?: () => void;
   onOpenProducts?: () => void;
+  onOpenPromotions?: () => void;
   onOpenPickups?: () => void;
   pendingPickupsCount?: number;
   onLogout?: () => void;
@@ -16,6 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings, 
   onOpenCustomers, 
   onOpenProducts, 
+  onOpenPromotions,
   onOpenPickups,
   pendingPickupsCount = 0,
   onLogout, 
@@ -72,6 +74,17 @@ export const Header: React.FC<HeaderProps> = ({
                     {pendingPickupsCount}
                   </span>
                 )}
+              </button>
+            )}
+
+            {isLoggedIn && onOpenPromotions && (
+              <button
+                onClick={onOpenPromotions}
+                className="p-2 sm:px-3 sm:py-2 text-slate-300 hover:text-amber-300 bg-dark-950 hover:bg-amber-500/10 rounded-xl border border-dark-700 hover:border-amber-500/30 transition-all flex items-center gap-1.5 text-xs font-bold whitespace-nowrap shrink-0"
+                title="Gestión de Promociones y Descuentos"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="hidden md:inline">Promos</span>
               </button>
             )}
 

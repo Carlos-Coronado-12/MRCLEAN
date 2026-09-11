@@ -267,3 +267,44 @@ CREATE POLICY "Public full control on pickup_requests"
   TO anon, authenticated
   USING (true)
   WITH CHECK (true);
+
+-- ==========================================================
+-- 11. TABLA DE PROMOCIONES Y OFERTAS (promotions)
+-- ==========================================================
+
+CREATE TABLE IF NOT EXISTS public.promotions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  description TEXT,
+  promo_type TEXT NOT NULL DEFAULT 'bulk_pairs' CHECK (promo_type IN ('bulk_pairs', 'fixed_discount', 'percentage_discount', 'package_price')),
+  min_pairs INTEGER DEFAULT 5,
+  special_price_per_pair NUMERIC(10,2) DEFAULT 100.00,
+  discount_value NUMERIC(10,2) DEFAULT 0.00,
+  package_price NUMERIC(10,2) DEFAULT 0.00,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  highlight_badge TEXT DEFAULT 'PROMO DESTACADA',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_promotions_active ON public.promotions(is_active);
+
+DROP TRIGGER IF EXISTS update_promotions_updated_at ON public.promotions;
+CREATE TRIGGER update_promotions_updated_at
+  BEFORE UPDATE ON public.promotions
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public full control on promotions" ON public.promotions;
+CREATE POLICY "Public full control on promotions"
+  ON public.promotions FOR ALL
+  TO anon, authenticated
+  USING (true)
+  WITH CHECK (true);
+
+-- Insertar promoción inicial de 5+ pares a $100 c/u
+INSERT INTO public.promotions (title, description, promo_type, min_pairs, special_price_per_pair, is_active, highlight_badge)
+SELECT 'Promo 5+ Pares a $100 c/u', 'A partir de 5 pares tu limpieza queda a solo $100 cada par', 'bulk_pairs', 5, 100.00, TRUE, 'SUPER PROMO'
+WHERE NOT EXISTS (SELECT 1 FROM public.promotions);
