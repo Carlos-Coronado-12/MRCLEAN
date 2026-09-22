@@ -68,7 +68,7 @@ export const SchedulePickupPage: React.FC = () => {
         fetchBusinessSettings(),
         fetchProducts(),
         fetchPromotions(),
-        fetchPortfolioItems(true)
+        fetchPortfolioItems(true, true)
       ]);
       if (settings?.store_phone) {
         setStorePhone(settings.store_phone);
@@ -80,8 +80,9 @@ export const SchedulePickupPage: React.FC = () => {
         setPromotions(promos.filter(p => p.is_active));
       }
       if (port && port.length > 0) {
-        setPortfolio(port);
+        setPortfolio(port.filter(p => p.is_active && p.is_featured));
       }
+
     } catch (e) {
       console.error('Error cargando datos de la tienda:', e);
     }

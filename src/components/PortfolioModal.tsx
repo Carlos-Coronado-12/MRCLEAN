@@ -530,7 +530,7 @@ export const PortfolioModal: React.FC<PortfolioModalProps> = ({ isOpen, onClose,
                     <Star className={`w-4 h-4 ${isFeatured ? 'text-amber-400 fill-amber-400' : 'text-slate-500'}`} />
                     <div>
                       <span className="text-xs font-bold text-slate-200 block">Destacar Trabajo</span>
-                      <span className="text-[10px] text-slate-400">Mostrarlo con insignia de trabajo estrella</span>
+                      <span className="text-[10px] text-slate-400">Mostrar en la página de colecta / citas</span>
                     </div>
                   </div>
                   <input
@@ -545,14 +545,15 @@ export const PortfolioModal: React.FC<PortfolioModalProps> = ({ isOpen, onClose,
                   <div className="flex items-center gap-2.5">
                     <Eye className={`w-4 h-4 ${isActive ? 'text-emerald-400' : 'text-slate-500'}`} />
                     <div>
-                      <span className="text-xs font-bold text-slate-200 block">Visible al Cliente</span>
-                      <span className="text-[10px] text-slate-400">Mostrar en el catálogo de agendado</span>
+                      <span className="text-xs font-bold text-slate-200 block">Estado Activo</span>
+                      <span className="text-[10px] text-slate-400">Habilitado en el sistema</span>
                     </div>
                   </div>
                   <input
                     type="checkbox"
                     checked={isActive}
                     onChange={e => setIsActive(e.target.checked)}
+
                     className="w-4 h-4 text-emerald-500 rounded border-dark-700 bg-dark-900 focus:ring-emerald-500"
                   />
                 </label>

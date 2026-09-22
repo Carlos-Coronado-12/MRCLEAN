@@ -1398,11 +1398,12 @@ function saveLocalPortfolio(items: PortfolioItem[]) {
   localStorage.setItem(LOCAL_STORAGE_PORTFOLIO_KEY, JSON.stringify(items));
 }
 
-export async function fetchPortfolioItems(onlyActive = false): Promise<PortfolioItem[]> {
+export async function fetchPortfolioItems(onlyActive = false, onlyFeatured = false): Promise<PortfolioItem[]> {
   if (isDemoMode) {
-    const items = getLocalPortfolio();
-    const sorted = [...items].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-    return onlyActive ? sorted.filter(i => i.is_active) : sorted;
+    let items = getLocalPortfolio();
+    if (onlyActive) items = items.filter(i => i.is_active);
+    if (onlyFeatured) items = items.filter(i => i.is_featured);
+    return [...items].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   }
 
   try {
@@ -1415,6 +1416,9 @@ export async function fetchPortfolioItems(onlyActive = false): Promise<Portfolio
     if (onlyActive) {
       query = query.eq('is_active', true);
     }
+    if (onlyFeatured) {
+      query = query.eq('is_featured', true);
+    }
 
     const { data, error } = await query;
     if (error) throw error;
@@ -1425,10 +1429,13 @@ export async function fetchPortfolioItems(onlyActive = false): Promise<Portfolio
     return [];
   } catch (err) {
     console.warn('Error al obtener portafolio de Supabase (usando respaldo local):', err);
-    const items = getLocalPortfolio();
-    return onlyActive ? items.filter(i => i.is_active) : items;
+    let items = getLocalPortfolio();
+    if (onlyActive) items = items.filter(i => i.is_active);
+    if (onlyFeatured) items = items.filter(i => i.is_featured);
+    return items;
   }
 }
+
 
 
 export async function savePortfolioItem(itemData: Partial<PortfolioItem>): Promise<PortfolioItem> {
