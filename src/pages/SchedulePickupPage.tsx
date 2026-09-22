@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Calendar, Clock, MapPin, Phone, User, Package, Plus, Minus, Camera, Trash2, CheckCircle2, ShieldCheck, ArrowRight, RefreshCw, Tag, Flame, Percent } from 'lucide-react';
+import { 
+  Sparkles, Calendar, Clock, MapPin, Phone, User, Package, Plus, Minus, Camera, 
+  Trash2, CheckCircle2, ShieldCheck, ArrowRight, RefreshCw, Tag, Flame, Percent,
+  Star, Award, ZoomIn, X, Sliders, ChevronRight, Check, Eye, ChevronLeft, CheckCircle
+} from 'lucide-react';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
-import { createPickupRequest, fetchBusinessSettings, fetchProducts, fetchPromotions, uploadOrderPhoto, generatePickupWhatsAppStoreLink } from '../services/orderService';
-import { PickupRequest, Product, Promotion } from '../types/database';
+import { 
+  createPickupRequest, fetchBusinessSettings, fetchProducts, fetchPromotions, 
+  uploadOrderPhoto, generatePickupWhatsAppStoreLink, fetchPortfolioItems 
+} from '../services/orderService';
+import { PickupRequest, Product, Promotion, PortfolioItem } from '../types/database';
 import confetti from 'canvas-confetti';
 
 const TIME_SLOTS = [
@@ -20,6 +27,11 @@ export const SchedulePickupPage: React.FC = () => {
   const [storePhone, setStorePhone] = useState<string>('6147324931');
   const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [portfolioCategory, setPortfolioCategory] = useState<string>('all');
+  const [lightboxItem, setLightboxItem] = useState<PortfolioItem | null>(null);
+  const [lightboxSliderPos, setLightboxSliderPos] = useState<number>(50);
+  const [cardSliderPositions, setCardSliderPositions] = useState<Record<string, number>>({});
   
   // Form fields
   const [customerName, setCustomerName] = useState('');
@@ -52,10 +64,11 @@ export const SchedulePickupPage: React.FC = () => {
 
   const loadStoreData = async () => {
     try {
-      const [settings, prods, promos] = await Promise.all([
+      const [settings, prods, promos, port] = await Promise.all([
         fetchBusinessSettings(),
         fetchProducts(),
-        fetchPromotions()
+        fetchPromotions(),
+        fetchPortfolioItems(true)
       ]);
       if (settings?.store_phone) {
         setStorePhone(settings.store_phone);
@@ -66,10 +79,14 @@ export const SchedulePickupPage: React.FC = () => {
       if (promos && promos.length > 0) {
         setPromotions(promos.filter(p => p.is_active));
       }
+      if (port && port.length > 0) {
+        setPortfolio(port);
+      }
     } catch (e) {
       console.error('Error cargando datos de la tienda:', e);
     }
   };
+
 
   const handleToggleService = (serviceName: string) => {
     setSelectedServices(prev => 
@@ -142,6 +159,26 @@ export const SchedulePickupPage: React.FC = () => {
       return updated;
     });
   };
+
+  const handleSelectFromShowcase = (item: PortfolioItem) => {
+    if (item.service_name) {
+      if (!selectedServices.includes(item.service_name)) {
+        setSelectedServices(prev => [...prev, item.service_name!]);
+      }
+    }
+    if (pairs.length > 0 && !pairs[0].model.trim()) {
+      handleUpdatePairModel(0, item.title);
+    }
+    const formElement = document.getElementById('booking-form');
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleCardSliderChange = (itemId: string, pos: number) => {
+    setCardSliderPositions(prev => ({ ...prev, [itemId]: pos }));
+  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -446,8 +483,237 @@ export const SchedulePickupPage: React.FC = () => {
           </div>
         )}
 
+        {/* SECCIÓN DE EVIDENCIA DE CALIDAD Y RESULTADOS REALES */}
+        {portfolio.length > 0 && (
+          <div className="mb-8 space-y-4">
+            
+            {/* Header de la sección */}
+            <div className="bg-gradient-to-br from-dark-900 via-dark-900 to-dark-950 border border-gold-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/10 rounded-full blur-2xl pointer-events-none" />
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-dark-800 pb-3 mb-3">
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-gold-400 uppercase tracking-wider mb-1">
+                    <Sparkles className="w-4 h-4 text-gold-400" />
+                    <span>Nuestra Calidad en Cada Par</span>
+                  </div>
+                  <h2 className="text-base sm:text-lg font-extrabold text-slate-100 font-serif">
+                    Evidencia de Trabajos Terminados
+                  </h2>
+                </div>
+
+                <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                  <Award className="w-3.5 h-3.5 text-gold-400" />
+                  <span>Fotos 100% reales</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-300 mb-3">
+                Desliza la barra horizontal sobre cada foto para comparar el <strong className="text-rose-400">Antes</strong> y el <strong className="text-emerald-400">Después</strong> de nuestro trabajo artesanal.
+              </p>
+
+              {/* Filtros de categorías */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setPortfolioCategory('all')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                    portfolioCategory === 'all'
+                      ? 'bg-gold-500 text-dark-950 shadow-[0_0_12px_rgba(212,175,55,0.4)]'
+                      : 'bg-dark-950/80 text-slate-400 hover:text-slate-200 border border-dark-700'
+                  }`}
+                >
+                  Todos ({portfolio.length})
+                </button>
+                {Array.from(new Set(portfolio.map(p => p.category))).map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setPortfolioCategory(cat)}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                      portfolioCategory === cat
+                        ? 'bg-gold-500 text-dark-950 shadow-[0_0_12px_rgba(212,175,55,0.4)]'
+                        : 'bg-dark-950/80 text-slate-400 hover:text-slate-200 border border-dark-700'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid de Trabajos con Sliders Antes/Después */}
+            <div className="grid grid-cols-1 gap-4">
+              {portfolio
+                .filter(item => portfolioCategory === 'all' || item.category === portfolioCategory)
+                .map(item => {
+                  const itemId = item.id || item.title;
+                  const sliderPos = cardSliderPositions[itemId] !== undefined ? cardSliderPositions[itemId] : 50;
+                  const hasBoth = Boolean(item.before_photo && item.after_photo);
+
+                  return (
+                    <div
+                      key={itemId}
+                      className="bg-dark-900/90 rounded-2xl border border-dark-700/80 hover:border-gold-500/50 shadow-xl overflow-hidden transition-all group"
+                    >
+                      {/* Imagen / Visualizador Slider Antes/Después */}
+                      <div className="relative aspect-[4/3] sm:aspect-[16/10] bg-dark-950 select-none overflow-hidden">
+                        {hasBoth ? (
+                          <>
+                            {/* Fondo blur elegante para fotos verticales */}
+                            <img
+                              src={item.after_photo}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover blur-lg opacity-25 scale-110 pointer-events-none"
+                            />
+
+                            {/* Imagen DESPUÉS (Fondo) */}
+                            <img
+                              src={item.after_photo}
+                              alt={`Después - ${item.title}`}
+                              className="absolute inset-0 w-full h-full object-contain p-2"
+                            />
+                            <div className="absolute top-3 right-3 z-10 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/90 text-white shadow backdrop-blur-sm pointer-events-none">
+                              DESPUÉS
+                            </div>
+
+                            {/* Imagen ANTES (Clip-path para preservar proporciones idénticas) */}
+                            <img
+                              src={item.before_photo!}
+                              alt={`Antes - ${item.title}`}
+                              className="absolute inset-0 w-full h-full object-contain p-2 pointer-events-none"
+                              style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+                            />
+                            <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/90 text-white shadow backdrop-blur-sm pointer-events-none">
+                              ANTES
+                            </div>
+
+                            {/* Manija central indicadora y línea dorada */}
+                            <div
+                              className="absolute inset-y-0 w-0.5 bg-gold-400 shadow-[0_0_20px_rgba(212,175,55,0.9)] pointer-events-none z-10"
+                              style={{ left: `${sliderPos}%` }}
+                            >
+                              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-gold-400 border-2 border-dark-950 flex items-center justify-center text-dark-950 shadow-xl">
+                                <Sliders className="w-3.5 h-3.5 rotate-90" />
+                              </div>
+                            </div>
+
+                            {/* Input range invisible encima para control táctil y mouse */}
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={sliderPos}
+                              onChange={e => handleCardSliderChange(itemId, Number(e.target.value))}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-20"
+                              title="Arrastra para comparar el antes y después"
+                            />
+                          </>
+                        ) : (
+                          // Solo foto final
+                          <>
+                            <img
+                              src={item.after_photo}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover blur-lg opacity-25 scale-110 pointer-events-none"
+                            />
+                            <img
+                              src={item.after_photo}
+                              alt={item.title}
+                              className="relative w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
+                            />
+                            <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/90 text-white shadow">
+                              RESULTADO FINAL
+                            </div>
+                          </>
+                        )}
+
+                        {/* Botón de Zoom / Pantalla completa */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLightboxItem(item);
+                            setLightboxSliderPos(sliderPos);
+                          }}
+                          className="absolute bottom-3 right-3 z-20 p-2 rounded-xl bg-dark-950/80 hover:bg-dark-950 text-slate-200 border border-dark-700 hover:border-gold-500/50 backdrop-blur-sm shadow-md transition-all flex items-center gap-1 text-[11px] font-semibold"
+                        >
+                          <ZoomIn className="w-3.5 h-3.5 text-gold-400" />
+                          <span className="hidden sm:inline">Ampliar</span>
+                        </button>
+                      </div>
+
+
+                      {/* Ficha descriptiva y CTA de selección */}
+                      <div className="p-4 space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-gold-500/15 text-gold-300 border border-gold-500/30">
+                                {item.category}
+                              </span>
+                              {item.is_featured && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-0.5">
+                                  <Star className="w-2.5 h-2.5 fill-amber-300" /> Destacado
+                                </span>
+                              )}
+                            </div>
+                            <h3 className="text-sm sm:text-base font-bold text-slate-100">{item.title}</h3>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleSelectFromShowcase(item)}
+                            className="shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-gold-500/20 to-amber-500/20 hover:from-gold-500 hover:to-amber-500 text-gold-300 hover:text-dark-950 border border-gold-500/40 transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                          >
+                            <span>Quiero este servicio</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {item.service_name && (
+                          <p className="text-xs text-gold-400 font-medium flex items-center gap-1">
+                            <Sparkles className="w-3 h-3" />
+                            <span>Servicio: {item.service_name}</span>
+                          </p>
+                        )}
+
+                        {item.description && (
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            {item.description}
+                          </p>
+                        )}
+                      </div>
+
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Garantía de Calidad Mr Clean */}
+            <div className="grid grid-cols-3 gap-2 text-center pt-1">
+              <div className="bg-dark-900/60 border border-dark-800 rounded-xl p-2.5">
+                <span className="text-base block mb-0.5">🧼</span>
+                <span className="text-[10px] font-bold text-slate-300 block">Detallado Artesanal</span>
+                <span className="text-[9px] text-slate-500">Sin maltratar materiales</span>
+              </div>
+              <div className="bg-dark-900/60 border border-dark-800 rounded-xl p-2.5">
+                <span className="text-base block mb-0.5">✨</span>
+                <span className="text-[10px] font-bold text-slate-300 block">Desamarillado UV</span>
+                <span className="text-[9px] text-slate-500">Suelas como nuevas</span>
+              </div>
+              <div className="bg-dark-900/60 border border-dark-800 rounded-xl p-2.5">
+                <span className="text-base block mb-0.5">🛡️</span>
+                <span className="text-[10px] font-bold text-slate-300 block">Garantía Total</span>
+                <span className="text-[9px] text-slate-500">Cuidado certificado</span>
+              </div>
+            </div>
+
+          </div>
+        )}
+
         {/* Booking Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form id="booking-form" onSubmit={handleSubmit} className="space-y-5">
+
           
           {/* SECCIÓN 1: Contacto */}
           <div className="bg-dark-900/80 backdrop-blur-sm rounded-2xl border border-dark-800 p-4 sm:p-5 space-y-4 shadow-lg">
@@ -859,6 +1125,135 @@ export const SchedulePickupPage: React.FC = () => {
         <p>© {new Date().getFullYear()} Mr Clean Sneakers — Limpieza y Restauración de Tenis</p>
       </footer>
 
+      {/* MODAL LIGHTBOX DE EVIDENCIA EN ALTA RESOLUCIÓN */}
+      {lightboxItem && (
+        <div className="fixed inset-0 z-50 bg-dark-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
+          <div className="relative w-full max-w-4xl bg-dark-900 border border-gold-500/40 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+            
+            {/* Lightbox Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-dark-800 bg-gradient-to-r from-dark-900 via-dark-900 to-dark-950">
+              <div className="flex items-center gap-2.5">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-gold-500/15 text-gold-300 border border-gold-500/30">
+                  {lightboxItem.category}
+                </span>
+                <h3 className="text-sm sm:text-base font-bold text-slate-100">{lightboxItem.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLightboxItem(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-dark-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Lightbox Media Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
+              
+              {/* Visualizador interactivo */}
+              <div className="relative aspect-[4/3] sm:aspect-[16/10] max-h-[65vh] rounded-2xl overflow-hidden border border-dark-700 bg-dark-950 select-none shadow-2xl">
+                {lightboxItem.before_photo ? (
+                  <>
+                    {/* Fondo blur elegante */}
+                    <img
+                      src={lightboxItem.after_photo}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover blur-xl opacity-25 scale-110 pointer-events-none"
+                    />
+
+                    {/* Después */}
+                    <img
+                      src={lightboxItem.after_photo}
+                      alt="Después"
+                      className="absolute inset-0 w-full h-full object-contain p-3"
+                    />
+                    <div className="absolute top-3 right-3 z-10 px-2.5 py-1 rounded-md text-xs font-extrabold bg-emerald-500/90 text-white shadow">
+                      DESPUÉS
+                    </div>
+
+                    {/* Antes con clip-path exacto */}
+                    <img
+                      src={lightboxItem.before_photo}
+                      alt="Antes"
+                      className="absolute inset-0 w-full h-full object-contain p-3 pointer-events-none"
+                      style={{ clipPath: `inset(0 ${100 - lightboxSliderPos}% 0 0)` }}
+                    />
+                    <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-md text-xs font-extrabold bg-rose-500/90 text-white shadow pointer-events-none">
+                      ANTES
+                    </div>
+
+                    {/* Manija Central */}
+                    <div
+                      className="absolute inset-y-0 w-0.5 bg-gold-400 shadow-[0_0_25px_rgba(212,175,55,0.9)] pointer-events-none z-10"
+                      style={{ left: `${lightboxSliderPos}%` }}
+                    >
+                      <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-9 h-9 rounded-full bg-gold-400 border-2 border-dark-950 flex items-center justify-center text-dark-950 shadow-2xl">
+                        <Sliders className="w-4 h-4 rotate-90" />
+                      </div>
+                    </div>
+
+                    {/* Slider input */}
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={lightboxSliderPos}
+                      onChange={e => setLightboxSliderPos(Number(e.target.value))}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-20"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <img
+                      src={lightboxItem.after_photo}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover blur-xl opacity-25 scale-110 pointer-events-none"
+                    />
+                    <img
+                      src={lightboxItem.after_photo}
+                      alt={lightboxItem.title}
+                      className="relative w-full h-full object-contain p-3"
+                    />
+                  </>
+                )}
+              </div>
+
+
+              {/* Info y botón de agendado */}
+              <div className="bg-dark-950 rounded-2xl p-4 border border-dark-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  {lightboxItem.service_name && (
+                    <p className="text-xs font-bold text-gold-400 flex items-center gap-1.5 mb-1">
+                      <Sparkles className="w-3.5 h-3.5" /> {lightboxItem.service_name}
+                    </p>
+                  )}
+                  {lightboxItem.description && (
+                    <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
+                      {lightboxItem.description}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSelectFromShowcase(lightboxItem);
+                    setLightboxItem(null);
+                  }}
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl font-extrabold text-xs text-dark-950 bg-gradient-to-r from-gold-400 to-amber-500 hover:from-gold-300 hover:to-amber-400 shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all flex items-center justify-center gap-2 shrink-0 active:scale-95"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Quiero este resultado en mis tenis</span>
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
+

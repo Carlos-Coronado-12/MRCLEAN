@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Crown, LogOut, Settings, ShieldCheck, Database, UserCheck, Package, Instagram } from 'lucide-react';
+import { Sparkles, Crown, LogOut, Settings, ShieldCheck, Database, UserCheck, Package, Instagram, Camera } from 'lucide-react';
 import { isDemoMode } from '../lib/supabaseClient';
 
 interface HeaderProps {
@@ -7,6 +7,7 @@ interface HeaderProps {
   onOpenCustomers?: () => void;
   onOpenProducts?: () => void;
   onOpenPromotions?: () => void;
+  onOpenPortfolio?: () => void;
   onOpenPickups?: () => void;
   pendingPickupsCount?: number;
   onLogout?: () => void;
@@ -18,11 +19,13 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCustomers, 
   onOpenProducts, 
   onOpenPromotions,
+  onOpenPortfolio,
   onOpenPickups,
   pendingPickupsCount = 0,
   onLogout, 
   isLoggedIn = true 
 }) => {
+
   return (
     <header className="sticky top-0 z-40 bg-dark-900/90 backdrop-blur-md border-b border-gold-500/20 shadow-lg">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -77,6 +80,17 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
+            {isLoggedIn && onOpenPortfolio && (
+              <button
+                onClick={onOpenPortfolio}
+                className="p-2 sm:px-3 sm:py-2 text-slate-200 hover:text-gold-300 bg-gradient-to-r from-dark-950 via-dark-900 to-dark-950 hover:bg-gold-500/10 rounded-xl border border-gold-500/30 hover:border-gold-500/60 transition-all flex items-center gap-1.5 text-xs font-bold whitespace-nowrap shrink-0 shadow-sm"
+                title="Galería de Evidencia de Calidad y Fotos Terminados"
+              >
+                <Camera className="w-4 h-4 text-gold-400 shrink-0" />
+                <span className="hidden md:inline">Galería</span>
+              </button>
+            )}
+
             {isLoggedIn && onOpenPromotions && (
               <button
                 onClick={onOpenPromotions}
@@ -87,6 +101,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="hidden md:inline">Promos</span>
               </button>
             )}
+
 
             {isLoggedIn && onOpenProducts && (
               <button

@@ -236,7 +236,7 @@ CREATE TABLE IF NOT EXISTS public.pickup_requests (
   customer_phone TEXT NOT NULL,
   address TEXT NOT NULL,
   neighborhood TEXT,
-  references TEXT,
+  "references" TEXT,
   preferred_date DATE NOT NULL,
   preferred_time_slot TEXT NOT NULL DEFAULT 'Mañana (9:00 AM - 1:00 PM)',
   item_count INTEGER NOT NULL DEFAULT 1,
@@ -308,3 +308,45 @@ CREATE POLICY "Public full control on promotions"
 INSERT INTO public.promotions (title, description, promo_type, min_pairs, special_price_per_pair, is_active, highlight_badge)
 SELECT 'Promo 5+ Pares a $100 c/u', 'A partir de 5 pares tu limpieza queda a solo $100 cada par', 'bulk_pairs', 5, 100.00, TRUE, 'SUPER PROMO'
 WHERE NOT EXISTS (SELECT 1 FROM public.promotions);
+
+-- ==========================================================
+-- 12. TABLA DE PORTAFOLIO Y EVIDENCIA DE CALIDAD (portfolio_items)
+-- Fotos de trabajos terminados para inspirar confianza
+-- ==========================================================
+
+CREATE TABLE IF NOT EXISTS public.portfolio_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Limpieza Profunda',
+  service_name TEXT,
+  description TEXT,
+  before_photo TEXT,
+  after_photo TEXT NOT NULL,
+  additional_photos TEXT[] DEFAULT '{}',
+  is_featured BOOLEAN NOT NULL DEFAULT FALSE,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_portfolio_active ON public.portfolio_items(is_active);
+CREATE INDEX IF NOT EXISTS idx_portfolio_category ON public.portfolio_items(category);
+CREATE INDEX IF NOT EXISTS idx_portfolio_featured ON public.portfolio_items(is_featured);
+
+DROP TRIGGER IF EXISTS update_portfolio_items_updated_at ON public.portfolio_items;
+CREATE TRIGGER update_portfolio_items_updated_at
+  BEFORE UPDATE ON public.portfolio_items
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE public.portfolio_items ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public full control on portfolio_items" ON public.portfolio_items;
+CREATE POLICY "Public full control on portfolio_items"
+  ON public.portfolio_items FOR ALL
+  TO anon, authenticated
+  USING (true)
+  WITH CHECK (true);
+
+

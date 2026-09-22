@@ -1,5 +1,5 @@
 import { supabase, isDemoMode } from '../lib/supabaseClient';
-import { Order, OrderItem, OrderStatus, BusinessSettings, Customer, Product, PickupRequest, PickupStatus, Promotion, PromoType } from '../types/database';
+import { Order, OrderItem, OrderStatus, BusinessSettings, Customer, Product, PickupRequest, PickupStatus, Promotion, PromoType, PortfolioItem } from '../types/database';
 
 const LOCAL_STORAGE_ORDERS_KEY = 'mrclean_orders_db_v1';
 const LOCAL_STORAGE_SETTINGS_KEY = 'mrclean_settings_db_v1';
@@ -7,6 +7,8 @@ const LOCAL_STORAGE_CUSTOMERS_KEY = 'mrclean_customers_db_v1';
 const LOCAL_STORAGE_PRODUCTS_KEY = 'mrclean_products_db_v1';
 const LOCAL_STORAGE_PICKUPS_KEY = 'mrclean_pickups_db_v1';
 const LOCAL_STORAGE_PROMOTIONS_KEY = 'mrclean_promotions_db_v1';
+const LOCAL_STORAGE_PORTFOLIO_KEY = 'mrclean_portfolio_db_v1';
+
 
 // Datos iniciales de demostración en caso de no tener Supabase configurado aún
 const INITIAL_DEMO_ORDERS: Order[] = [
@@ -1362,5 +1364,267 @@ export async function deletePromotion(id: string): Promise<void> {
     console.warn('Error eliminando promoción en Supabase:', err);
   }
 }
+
+// ==========================================================
+// GESTIÓN DE PORTAFOLIO Y EVIDENCIA DE CALIDAD (FOTOS TERMINADOS)
+// ==========================================================
+
+const INITIAL_DEMO_PORTFOLIO: PortfolioItem[] = [];
+
+const DEMO_PORTFOLIO_IDS = new Set(['portfolio-1', 'portfolio-2', 'portfolio-3', 'portfolio-4']);
+
+function getLocalPortfolio(): PortfolioItem[] {
+  const local = localStorage.getItem(LOCAL_STORAGE_PORTFOLIO_KEY);
+  if (!local) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(local);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    // Filtrar los 4 ejemplos demostrativos antiguos si existían en el almacenamiento local del navegador
+    const cleaned = parsed.filter(item => !DEMO_PORTFOLIO_IDS.has(item.id));
+    if (cleaned.length !== parsed.length) {
+      localStorage.setItem(LOCAL_STORAGE_PORTFOLIO_KEY, JSON.stringify(cleaned));
+    }
+    return cleaned;
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalPortfolio(items: PortfolioItem[]) {
+  localStorage.setItem(LOCAL_STORAGE_PORTFOLIO_KEY, JSON.stringify(items));
+}
+
+export async function fetchPortfolioItems(onlyActive = false): Promise<PortfolioItem[]> {
+  if (isDemoMode) {
+    const items = getLocalPortfolio();
+    const sorted = [...items].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    return onlyActive ? sorted.filter(i => i.is_active) : sorted;
+  }
+
+  try {
+    let query = supabase
+      .from('portfolio_items')
+      .select('*')
+      .order('display_order', { ascending: true })
+      .order('created_at', { ascending: false });
+
+    if (onlyActive) {
+      query = query.eq('is_active', true);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (data) {
+      saveLocalPortfolio(data);
+      return data as PortfolioItem[];
+    }
+    return [];
+  } catch (err) {
+    console.warn('Error al obtener portafolio de Supabase (usando respaldo local):', err);
+    const items = getLocalPortfolio();
+    return onlyActive ? items.filter(i => i.is_active) : items;
+  }
+}
+
+
+export async function savePortfolioItem(itemData: Partial<PortfolioItem>): Promise<PortfolioItem> {
+  if (!itemData.title?.trim()) {
+    throw new Error('El nombre o modelo del trabajo es obligatorio');
+  }
+  if (!itemData.after_photo?.trim()) {
+    throw new Error('La foto del resultado final es obligatoria');
+  }
+
+  const isEditing = Boolean(itemData.id);
+
+  if (isDemoMode) {
+    const items = getLocalPortfolio();
+    let updated: PortfolioItem;
+    if (isEditing) {
+      const idx = items.findIndex(i => i.id === itemData.id);
+      updated = {
+        ...(items[idx] || {}),
+        ...itemData,
+        updated_at: new Date().toISOString()
+      } as PortfolioItem;
+      if (idx !== -1) items[idx] = updated;
+    } else {
+      updated = {
+        id: `portfolio-local-${Date.now()}`,
+        title: itemData.title.trim(),
+        category: itemData.category || 'Limpieza Profunda',
+        service_name: itemData.service_name || '',
+        description: itemData.description || '',
+        before_photo: itemData.before_photo || null,
+        after_photo: itemData.after_photo.trim(),
+        additional_photos: itemData.additional_photos || [],
+        is_featured: itemData.is_featured !== undefined ? itemData.is_featured : false,
+        display_order: itemData.display_order !== undefined ? Number(itemData.display_order) : items.length + 1,
+        is_active: itemData.is_active !== undefined ? itemData.is_active : true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      items.unshift(updated);
+    }
+    saveLocalPortfolio(items);
+    return updated;
+  }
+
+  try {
+    let saved: PortfolioItem;
+    if (isEditing) {
+      const { data, error } = await supabase
+        .from('portfolio_items')
+        .update({
+          title: itemData.title.trim(),
+          category: itemData.category || 'Limpieza Profunda',
+          service_name: itemData.service_name || null,
+          description: itemData.description || null,
+          before_photo: itemData.before_photo || null,
+          after_photo: itemData.after_photo.trim(),
+          additional_photos: itemData.additional_photos || [],
+          is_featured: itemData.is_featured !== undefined ? itemData.is_featured : false,
+          display_order: itemData.display_order !== undefined ? Number(itemData.display_order) : 0,
+          is_active: itemData.is_active !== undefined ? itemData.is_active : true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', itemData.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      saved = data;
+    } else {
+      const { data, error } = await supabase
+        .from('portfolio_items')
+        .insert([{
+          title: itemData.title.trim(),
+          category: itemData.category || 'Limpieza Profunda',
+          service_name: itemData.service_name || null,
+          description: itemData.description || null,
+          before_photo: itemData.before_photo || null,
+          after_photo: itemData.after_photo.trim(),
+          additional_photos: itemData.additional_photos || [],
+          is_featured: itemData.is_featured !== undefined ? itemData.is_featured : false,
+          display_order: itemData.display_order !== undefined ? Number(itemData.display_order) : 0,
+          is_active: itemData.is_active !== undefined ? itemData.is_active : true
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      saved = data;
+    }
+    return saved;
+  } catch (err) {
+    console.warn('Error guardando trabajo en Supabase, usando respaldo local:', err);
+    const items = getLocalPortfolio();
+    let updated: PortfolioItem;
+    if (isEditing) {
+      const idx = items.findIndex(i => i.id === itemData.id);
+      updated = {
+        ...(items[idx] || {}),
+        ...itemData,
+        updated_at: new Date().toISOString()
+      } as PortfolioItem;
+      if (idx !== -1) items[idx] = updated;
+    } else {
+      updated = {
+        id: `portfolio-local-${Date.now()}`,
+        title: itemData.title.trim(),
+        category: itemData.category || 'Limpieza Profunda',
+        service_name: itemData.service_name || '',
+        description: itemData.description || '',
+        before_photo: itemData.before_photo || null,
+        after_photo: itemData.after_photo!.trim(),
+        additional_photos: itemData.additional_photos || [],
+        is_featured: itemData.is_featured !== undefined ? itemData.is_featured : false,
+        display_order: itemData.display_order !== undefined ? Number(itemData.display_order) : items.length + 1,
+        is_active: itemData.is_active !== undefined ? itemData.is_active : true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      items.unshift(updated);
+    }
+    saveLocalPortfolio(items);
+    return updated;
+  }
+}
+
+export async function togglePortfolioActive(id: string, is_active: boolean): Promise<PortfolioItem> {
+  const items = getLocalPortfolio();
+  const idx = items.findIndex(i => i.id === id);
+  if (idx !== -1) {
+    items[idx] = { ...items[idx], is_active, updated_at: new Date().toISOString() };
+    saveLocalPortfolio(items);
+  }
+
+  if (isDemoMode) {
+    return items[idx];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('portfolio_items')
+      .update({ is_active, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as PortfolioItem;
+  } catch (err) {
+    console.warn('Error cambiando visibilidad de trabajo en Supabase:', err);
+    return idx !== -1 ? items[idx] : ({ id, is_active } as any);
+  }
+}
+
+export async function togglePortfolioFeatured(id: string, is_featured: boolean): Promise<PortfolioItem> {
+  const items = getLocalPortfolio();
+  const idx = items.findIndex(i => i.id === id);
+  if (idx !== -1) {
+    items[idx] = { ...items[idx], is_featured, updated_at: new Date().toISOString() };
+    saveLocalPortfolio(items);
+  }
+
+  if (isDemoMode) {
+    return items[idx];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('portfolio_items')
+      .update({ is_featured, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as PortfolioItem;
+  } catch (err) {
+    console.warn('Error cambiando destacado de trabajo en Supabase:', err);
+    return idx !== -1 ? items[idx] : ({ id, is_featured } as any);
+  }
+}
+
+export async function deletePortfolioItem(id: string): Promise<void> {
+  const items = getLocalPortfolio();
+  const filtered = items.filter(i => i.id !== id);
+  saveLocalPortfolio(filtered);
+
+  if (isDemoMode) return;
+
+  try {
+    const { error } = await supabase.from('portfolio_items').delete().eq('id', id);
+    if (error) console.warn('Aviso borrando trabajo en Supabase:', error.message);
+  } catch (err) {
+    console.warn('Error eliminando trabajo en Supabase:', err);
+  }
+}
+
 
 

@@ -101,3 +101,20 @@ export interface Promotion {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface PortfolioItem {
+  id?: string;
+  title: string;
+  category: string;
+  service_name?: string;
+  description?: string | null;
+  before_photo?: string | null;
+  after_photo: string;
+  additional_photos?: string[];
+  is_featured: boolean;
+  display_order?: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+

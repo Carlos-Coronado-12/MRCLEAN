@@ -10,10 +10,11 @@ import { CustomersModal } from '../components/CustomersModal';
 import { ProductsModal } from '../components/ProductsModal';
 import { PromotionsModal } from '../components/PromotionsModal';
 import { PickupRequestsModal } from '../components/PickupRequestsModal';
+import { PortfolioModal } from '../components/PortfolioModal';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import {
   Search, Plus, RefreshCw, Copy, Check, QrCode, ExternalLink, DollarSign,
-  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp, UserCheck, Trash2, Instagram
+  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp, UserCheck, Trash2, Instagram, Camera
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
@@ -33,8 +34,10 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
   const [isCustomersOpen, setIsCustomersOpen] = useState(false);
   const [isProductsOpen, setIsProductsOpen] = useState(false);
   const [isPromotionsOpen, setIsPromotionsOpen] = useState(false);
+  const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
   const [isPickupsOpen, setIsPickupsOpen] = useState(false);
   const [pendingPickupsCount, setPendingPickupsCount] = useState(0);
+
 
   // Copy link feedback state
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -134,6 +137,7 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
         onOpenCustomers={() => setIsCustomersOpen(true)}
         onOpenProducts={() => setIsProductsOpen(true)}
         onOpenPromotions={() => setIsPromotionsOpen(true)}
+        onOpenPortfolio={() => setIsPortfolioOpen(true)}
         onOpenPickups={() => setIsPickupsOpen(true)}
         pendingPickupsCount={pendingPickupsCount}
         onLogout={onLogout}
@@ -562,6 +566,14 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
         />
       )}
 
+      {isPortfolioOpen && (
+        <PortfolioModal
+          isOpen={isPortfolioOpen}
+          onClose={() => setIsPortfolioOpen(false)}
+        />
+      )}
+
     </div>
   );
 };
+
