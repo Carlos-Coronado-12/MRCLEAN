@@ -179,8 +179,9 @@ export const PortfolioModal: React.FC<PortfolioModalProps> = ({ isOpen, onClose,
       const updated = await togglePortfolioActive(item.id!, !item.is_active);
       setItems(prev => prev.map(i => i.id === item.id ? updated : i));
       onUpdated?.();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error cambiando estado activo:', err);
+      alert(err.message || 'Error al cambiar el estado del trabajo.');
     }
   };
 
@@ -189,8 +190,9 @@ export const PortfolioModal: React.FC<PortfolioModalProps> = ({ isOpen, onClose,
       const updated = await togglePortfolioFeatured(item.id!, !item.is_featured);
       setItems(prev => prev.map(i => i.id === item.id ? updated : i));
       onUpdated?.();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error cambiando destacado:', err);
+      alert(err.message || 'Error al cambiar destacado.');
     }
   };
 
@@ -200,8 +202,9 @@ export const PortfolioModal: React.FC<PortfolioModalProps> = ({ isOpen, onClose,
         await deletePortfolioItem(item.id!);
         setItems(prev => prev.filter(i => i.id !== item.id));
         onUpdated?.();
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error eliminando trabajo:', err);
+        alert(err.message || 'Error al eliminar el trabajo.');
       }
     }
   };
