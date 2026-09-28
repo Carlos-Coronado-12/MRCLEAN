@@ -349,4 +349,46 @@ CREATE POLICY "Public full control on portfolio_items"
   USING (true)
   WITH CHECK (true);
 
+-- ==========================================================
+-- 13. TABLA DE RESEÑAS Y SATISFACCIÓN (reviews)
+-- Calificaciones de clientes al completar su pedido
+-- ==========================================================
+
+CREATE TABLE IF NOT EXISTS public.reviews (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+  order_number TEXT NOT NULL,
+  customer_name TEXT NOT NULL,
+  customer_phone TEXT,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  service_aspects TEXT[] DEFAULT '{}',
+  would_recommend BOOLEAN NOT NULL DEFAULT TRUE,
+  is_published BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_order_id ON public.reviews(order_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_order_number ON public.reviews(order_number);
+CREATE INDEX IF NOT EXISTS idx_reviews_rating ON public.reviews(rating);
+CREATE INDEX IF NOT EXISTS idx_reviews_published ON public.reviews(is_published);
+CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON public.reviews(created_at DESC);
+
+DROP TRIGGER IF EXISTS update_reviews_updated_at ON public.reviews;
+CREATE TRIGGER update_reviews_updated_at
+  BEFORE UPDATE ON public.reviews
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public full control on reviews" ON public.reviews;
+CREATE POLICY "Public full control on reviews"
+  ON public.reviews FOR ALL
+  TO anon, authenticated
+  USING (true)
+  WITH CHECK (true);
+
+
 

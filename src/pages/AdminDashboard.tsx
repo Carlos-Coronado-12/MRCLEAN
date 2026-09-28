@@ -11,10 +11,11 @@ import { ProductsModal } from '../components/ProductsModal';
 import { PromotionsModal } from '../components/PromotionsModal';
 import { PickupRequestsModal } from '../components/PickupRequestsModal';
 import { PortfolioModal } from '../components/PortfolioModal';
+import { ReviewsModal } from '../components/ReviewsModal';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import {
   Search, Plus, RefreshCw, Copy, Check, QrCode, ExternalLink, DollarSign,
-  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp, UserCheck, Trash2, Instagram, Camera
+  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp, UserCheck, Trash2, Instagram, Camera, Star
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
@@ -35,8 +36,10 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
   const [isProductsOpen, setIsProductsOpen] = useState(false);
   const [isPromotionsOpen, setIsPromotionsOpen] = useState(false);
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
+  const [isReviewsOpen, setIsReviewsOpen] = useState(false);
   const [isPickupsOpen, setIsPickupsOpen] = useState(false);
   const [pendingPickupsCount, setPendingPickupsCount] = useState(0);
+
 
 
   // Copy link feedback state
@@ -138,6 +141,7 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
         onOpenProducts={() => setIsProductsOpen(true)}
         onOpenPromotions={() => setIsPromotionsOpen(true)}
         onOpenPortfolio={() => setIsPortfolioOpen(true)}
+        onOpenReviews={() => setIsReviewsOpen(true)}
         onOpenPickups={() => setIsPickupsOpen(true)}
         pendingPickupsCount={pendingPickupsCount}
         onLogout={onLogout}
@@ -461,11 +465,24 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
 
                             {/* WhatsApp Directo */}
                             <a
-                              href={generateWhatsAppLink(order, order.status === 'ready' ? 'ready' : 'new_order')}
+                              href={generateWhatsAppLink(
+                                order,
+                                order.status === 'ready'
+                                  ? 'ready'
+                                  : order.status === 'delivered'
+                                  ? 'delivered'
+                                  : 'new_order'
+                              )}
                               target="_blank"
                               rel="noreferrer"
                               className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/30"
-                              title="Enviar mensaje por WhatsApp"
+                              title={
+                                order.status === 'delivered'
+                                  ? 'Enviar mensaje de agradecimiento con link de reseña'
+                                  : order.status === 'ready'
+                                  ? 'Enviar notificación de pedido listo'
+                                  : 'Enviar link de seguimiento'
+                              }
                             >
                               <WhatsAppIcon className="w-4 h-4" />
                             </a>
@@ -570,6 +587,13 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
         <PortfolioModal
           isOpen={isPortfolioOpen}
           onClose={() => setIsPortfolioOpen(false)}
+        />
+      )}
+
+      {isReviewsOpen && (
+        <ReviewsModal
+          isOpen={isReviewsOpen}
+          onClose={() => setIsReviewsOpen(false)}
         />
       )}
 

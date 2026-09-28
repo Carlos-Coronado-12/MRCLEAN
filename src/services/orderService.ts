@@ -1,5 +1,5 @@
 import { supabase, isDemoMode } from '../lib/supabaseClient';
-import { Order, OrderItem, OrderStatus, BusinessSettings, Customer, Product, PickupRequest, PickupStatus, Promotion, PromoType, PortfolioItem } from '../types/database';
+import { Order, OrderItem, OrderStatus, BusinessSettings, Customer, Product, PickupRequest, PickupStatus, Promotion, PromoType, PortfolioItem, Review } from '../types/database';
 
 const LOCAL_STORAGE_ORDERS_KEY = 'mrclean_orders_db_v1';
 const LOCAL_STORAGE_SETTINGS_KEY = 'mrclean_settings_db_v1';
@@ -8,6 +8,8 @@ const LOCAL_STORAGE_PRODUCTS_KEY = 'mrclean_products_db_v1';
 const LOCAL_STORAGE_PICKUPS_KEY = 'mrclean_pickups_db_v1';
 const LOCAL_STORAGE_PROMOTIONS_KEY = 'mrclean_promotions_db_v1';
 const LOCAL_STORAGE_PORTFOLIO_KEY = 'mrclean_portfolio_db_v1';
+const LOCAL_STORAGE_REVIEWS_KEY = 'mrclean_reviews_db_v1';
+
 
 export const isUuid = (id?: string): boolean => {
   if (!id) return false;
@@ -472,7 +474,8 @@ export function generateWhatsAppLink(
       : '';
     text = `*MR CLEAN SNEAKERS*\n\n¡Hola *${order.customer_name}*!\n\nTus tenis han quedado listos y están preparados para entrega.\n\n*Orden:* #${order.order_number}\n*Estado:* LISTO PARA ENTREGA${balanceNotice}\n\nConsulta los detalles y fotos finales aquí:\n${publicUrl}\n\n¡Te esperamos en tienda!`;
   } else if (eventType === 'delivered') {
-    text = `*MR CLEAN SNEAKERS*\n\n¡Gracias por tu preferencia, *${order.customer_name}*!\n\nTu orden *#${order.order_number}* ha sido entregada con éxito. Esperamos que disfrutes tus tenis impecables.\n\n¡Esperamos verte pronto de nuevo!`;
+    const reviewUrl = `${baseUrl}/pedido/${order.public_token}#resena`;
+    text = `*MR CLEAN SNEAKERS*\n\nMuchas gracias por tu preferencia, *${order.customer_name}*.\n\nTu orden *#${order.order_number}* ha sido completada y entregada con exito. Esperamos que disfrutes tus tenis como nuevos.\n\n*Tu opinion es muy importante para nosotros.*\nNos encantaria conocer tu experiencia. Por favor dejanos tu resena y calificacion en el siguiente enlace:\n${reviewUrl}\n\nEsperamos verte pronto de nuevo.`;
   } else if (eventType === 'contact_store') {
     text = `*MR CLEAN SNEAKERS*\n\n¡Hola! Me gustaría hacer otro pedido.`;
   } else {
@@ -1615,6 +1618,268 @@ export async function deletePortfolioItem(id: string): Promise<void> {
     throw new Error(err.message || 'Error al eliminar de la base de datos');
   }
 }
+
+// ==========================================
+// 8. RESEÑAS Y SATISFACCIÓN DE CLIENTES (reviews)
+// ==========================================
+
+const INITIAL_DEMO_REVIEWS: Review[] = [
+  {
+    id: 'demo-review-1',
+    order_id: 'demo-order-1',
+    order_number: 'MC-000001',
+    customer_name: 'Carlos Mendoza',
+    customer_phone: '525512345678',
+    rating: 5,
+    comment: '¡El mejor servicio de limpieza de sneakers en la ciudad! Mis Jordan quedaron como nuevos, la gamuza impecable y un aroma súper fresco.',
+    service_aspects: ['Limpieza Profunda', 'Cuidado de Materiales', 'Aroma Impecable', 'Puntualidad'],
+    would_recommend: true,
+    is_published: true,
+    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+    updated_at: new Date(Date.now() - 86400000 * 3).toISOString()
+  },
+  {
+    id: 'demo-review-2',
+    order_id: 'demo-order-2',
+    order_number: 'MC-000002',
+    customer_name: 'Andrea Domínguez',
+    customer_phone: '525587654321',
+    rating: 5,
+    comment: 'Superaron mis expectativas por completo. El blanqueamiento de suela quedó perfecto y la atención por WhatsApp fue rapidísima.',
+    service_aspects: ['Blanqueamiento de Suelas', 'Atención Rápida', 'Excelente Trato'],
+    would_recommend: true,
+    is_published: true,
+    created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
+    updated_at: new Date(Date.now() - 86400000 * 1).toISOString()
+  }
+];
+
+function getLocalReviews(): Review[] {
+  const saved = localStorage.getItem(LOCAL_STORAGE_REVIEWS_KEY);
+  if (saved !== null) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+  }
+  localStorage.setItem(LOCAL_STORAGE_REVIEWS_KEY, JSON.stringify(INITIAL_DEMO_REVIEWS));
+  return INITIAL_DEMO_REVIEWS;
+}
+
+function saveLocalReviews(items: Review[]) {
+  localStorage.setItem(LOCAL_STORAGE_REVIEWS_KEY, JSON.stringify(items));
+}
+
+export async function fetchReviews(onlyPublished = false): Promise<Review[]> {
+  if (isDemoMode) {
+    let items = getLocalReviews();
+    if (onlyPublished) {
+      items = items.filter(i => i.is_published);
+    }
+    return items.sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime());
+  }
+
+  try {
+    let query = supabase
+      .from('reviews')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (onlyPublished) {
+      query = query.eq('is_published', true);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []) as Review[];
+  } catch (err) {
+    console.warn('Error cargando reseñas de Supabase, usando respaldo local:', err);
+    let items = getLocalReviews();
+    if (onlyPublished) {
+      items = items.filter(i => i.is_published);
+    }
+    return items;
+  }
+}
+
+export async function fetchReviewByOrderId(orderId: string): Promise<Review | null> {
+  const items = getLocalReviews();
+  const localMatch = items.find(r => r.order_id === orderId) || null;
+
+  if (isDemoMode || !isUuid(orderId)) {
+    return localMatch;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('order_id', orderId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (data) return data as Review;
+    return localMatch;
+  } catch (err) {
+    console.warn('Error buscando reseña por order_id:', err);
+    return localMatch;
+  }
+}
+
+export async function fetchReviewByOrderNumber(orderNumber: string): Promise<Review | null> {
+  const items = getLocalReviews();
+  const localMatch = items.find(r => r.order_number?.toLowerCase() === orderNumber.toLowerCase()) || null;
+
+  if (isDemoMode) {
+    return localMatch;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('order_number', orderNumber)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (data) return data as Review;
+    return localMatch;
+  } catch (err) {
+    console.warn('Error buscando reseña por order_number:', err);
+    return localMatch;
+  }
+}
+
+export async function createReview(
+  reviewData: Omit<Review, 'id' | 'created_at' | 'updated_at'>
+): Promise<Review> {
+  const fallbackId = `review-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const newReview: Review = {
+    ...reviewData,
+    id: fallbackId,
+    service_aspects: reviewData.service_aspects || [],
+    would_recommend: reviewData.would_recommend !== false,
+    is_published: reviewData.is_published !== false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  // Guardar siempre en localstorage
+  const localItems = getLocalReviews();
+  const existingIdx = localItems.findIndex(
+    r => (reviewData.order_id && r.order_id === reviewData.order_id) || 
+         (reviewData.order_number && r.order_number === reviewData.order_number)
+  );
+  if (existingIdx !== -1) {
+    localItems[existingIdx] = { ...localItems[existingIdx], ...newReview, id: localItems[existingIdx].id || fallbackId };
+  } else {
+    localItems.unshift(newReview);
+  }
+  saveLocalReviews(localItems);
+
+  if (isDemoMode) {
+    return newReview;
+  }
+
+  try {
+    const payload: any = {
+      order_number: reviewData.order_number,
+      customer_name: reviewData.customer_name,
+      customer_phone: reviewData.customer_phone || null,
+      rating: reviewData.rating,
+      comment: reviewData.comment || null,
+      service_aspects: reviewData.service_aspects || [],
+      would_recommend: reviewData.would_recommend !== false,
+      is_published: reviewData.is_published !== false
+    };
+
+    if (reviewData.order_id && isUuid(reviewData.order_id)) {
+      payload.order_id = reviewData.order_id;
+    }
+
+    const { data, error } = await supabase
+      .from('reviews')
+      .insert([payload])
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (data?.id) {
+      // Actualizar ID local con el ID de Supabase
+      const updatedLocal = getLocalReviews().map(r => 
+        r.order_number === reviewData.order_number ? { ...r, id: data.id } : r
+      );
+      saveLocalReviews(updatedLocal);
+    }
+    return (data || newReview) as Review;
+  } catch (err: any) {
+    console.warn('Aviso al insertar reseña en Supabase (se guardó copia local):', err);
+    return newReview;
+  }
+}
+
+export async function toggleReviewPublished(identifier: string, is_published: boolean): Promise<Review> {
+  const items = getLocalReviews();
+  const idx = items.findIndex(i => i.id === identifier || i.order_number === identifier);
+  let updatedItem: Review | null = null;
+  if (idx !== -1) {
+    items[idx] = { ...items[idx], is_published, updated_at: new Date().toISOString() };
+    updatedItem = items[idx];
+    saveLocalReviews(items);
+  }
+
+  if (isDemoMode) {
+    return updatedItem || ({ id: identifier, is_published } as any);
+  }
+
+  try {
+    if (isUuid(identifier)) {
+      const { data, error } = await supabase
+        .from('reviews')
+        .update({ is_published, updated_at: new Date().toISOString() })
+        .eq('id', identifier)
+        .select()
+        .single();
+      if (error) console.warn('Aviso actualizando reseña en Supabase por ID:', error.message);
+      if (data) return data as Review;
+    } else {
+      const { data, error } = await supabase
+        .from('reviews')
+        .update({ is_published, updated_at: new Date().toISOString() })
+        .eq('order_number', identifier)
+        .select()
+        .single();
+      if (error) console.warn('Aviso actualizando reseña en Supabase por Orden:', error.message);
+      if (data) return data as Review;
+    }
+  } catch (err: any) {
+    console.warn('Advertencia actualizando reseña en Supabase:', err);
+  }
+  return updatedItem || ({ id: identifier, is_published } as any);
+}
+
+export async function deleteReview(identifier: string): Promise<void> {
+  const items = getLocalReviews();
+  const filtered = items.filter(i => i.id !== identifier && i.order_number !== identifier);
+  saveLocalReviews(filtered);
+
+  if (isDemoMode) return;
+
+  try {
+    if (isUuid(identifier)) {
+      const { error } = await supabase.from('reviews').delete().eq('id', identifier);
+      if (error) console.warn('Aviso eliminando reseña en Supabase por ID:', error.message);
+    } else {
+      const { error } = await supabase.from('reviews').delete().eq('order_number', identifier);
+      if (error) console.warn('Aviso eliminando reseña en Supabase por Orden:', error.message);
+    }
+  } catch (err: any) {
+    console.warn('Advertencia eliminando reseña en Supabase:', err);
+  }
+}
+
+
 
 
 

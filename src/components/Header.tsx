@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Crown, LogOut, Settings, ShieldCheck, Database, UserCheck, Package, Instagram, Camera } from 'lucide-react';
+import { Sparkles, Crown, LogOut, Settings, ShieldCheck, Database, UserCheck, Package, Instagram, Camera, Star } from 'lucide-react';
 import { isDemoMode } from '../lib/supabaseClient';
 
 interface HeaderProps {
@@ -9,6 +9,7 @@ interface HeaderProps {
   onOpenPromotions?: () => void;
   onOpenPortfolio?: () => void;
   onOpenPickups?: () => void;
+  onOpenReviews?: () => void;
   pendingPickupsCount?: number;
   onLogout?: () => void;
   isLoggedIn?: boolean;
@@ -21,10 +22,12 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenPromotions,
   onOpenPortfolio,
   onOpenPickups,
+  onOpenReviews,
   pendingPickupsCount = 0,
   onLogout, 
   isLoggedIn = true 
 }) => {
+
 
   return (
     <header className="sticky top-0 z-40 bg-dark-900/90 backdrop-blur-md border-b border-gold-500/20 shadow-lg">
@@ -88,6 +91,17 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <Camera className="w-4 h-4 text-gold-400 shrink-0" />
                 <span className="hidden md:inline">Galería</span>
+              </button>
+            )}
+
+            {isLoggedIn && onOpenReviews && (
+              <button
+                onClick={onOpenReviews}
+                className="p-2 sm:px-3 sm:py-2 text-slate-200 hover:text-gold-300 bg-gradient-to-r from-dark-950 via-dark-900 to-dark-950 hover:bg-gold-500/10 rounded-xl border border-gold-500/30 hover:border-gold-500/60 transition-all flex items-center gap-1.5 text-xs font-bold whitespace-nowrap shrink-0 shadow-sm"
+                title="Reseñas y Satisfacción de Clientes"
+              >
+                <Star className="w-4 h-4 text-gold-400 fill-gold-400 shrink-0" />
+                <span className="hidden md:inline">Reseñas</span>
               </button>
             )}
 

@@ -118,3 +118,19 @@ export interface PortfolioItem {
   updated_at?: string;
 }
 
+export interface Review {
+  id?: string;
+  order_id?: string;
+  order_number: string;
+  customer_name: string;
+  customer_phone?: string;
+  rating: number; // 1 to 5
+  comment?: string | null;
+  service_aspects?: string[];
+  would_recommend?: boolean;
+  is_published?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+

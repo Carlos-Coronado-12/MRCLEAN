@@ -59,6 +59,7 @@ export const App: React.FC = () => {
         
         {/* Rutas públicas del cliente (NO requieren login) */}
         <Route path="/pedido/:token" element={<ClientOrderView />} />
+        <Route path="/resena/:token" element={<ClientOrderView />} />
         <Route path="/agendar" element={<SchedulePickupPage />} />
         <Route path="/colecta" element={<SchedulePickupPage />} />
 
