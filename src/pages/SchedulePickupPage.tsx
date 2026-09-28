@@ -1149,25 +1149,6 @@ export const SchedulePickupPage: React.FC = () => {
             </div>
           )}
 
-          {/* 3. GARANTÍAS MR CLEAN SNEAKERS */}
-          <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-dark-800">
-            <div className="bg-dark-950/80 border border-dark-800 rounded-xl p-3">
-              <span className="text-lg block mb-1">🧼</span>
-              <span className="text-[11px] font-bold text-slate-200 block">Detallado Artesanal</span>
-              <span className="text-[9px] text-slate-400">Materiales protegidos</span>
-            </div>
-            <div className="bg-dark-950/80 border border-dark-800 rounded-xl p-3">
-              <span className="text-lg block mb-1">✨</span>
-              <span className="text-[11px] font-bold text-slate-200 block">Desamarillado UV</span>
-              <span className="text-[9px] text-slate-400">Suelas como nuevas</span>
-            </div>
-            <div className="bg-dark-950/80 border border-dark-800 rounded-xl p-3">
-              <span className="text-lg block mb-1">🛡️</span>
-              <span className="text-[11px] font-bold text-slate-200 block">Garantía Total</span>
-              <span className="text-[9px] text-slate-400">Satisfacción 100%</span>
-            </div>
-          </div>
-
           {/* Botón para volver arriba al formulario */}
           <div className="text-center pt-2">
             <button
