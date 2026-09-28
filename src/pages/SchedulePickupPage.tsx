@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, Calendar, Clock, MapPin, Phone, User, Package, Plus, Minus, Camera, 
   Trash2, CheckCircle2, ShieldCheck, ArrowRight, RefreshCw, Tag, Flame, Percent,
-  Star, Award, ZoomIn, X, Sliders, ChevronRight, Check, Eye, ChevronLeft, CheckCircle
+  Star, Award, ZoomIn, X, Sliders, ChevronRight, Check, Eye, ChevronLeft, CheckCircle,
+  MessageSquare, ArrowUp, ThumbsUp, Heart
 } from 'lucide-react';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import { 
   createPickupRequest, fetchBusinessSettings, fetchProducts, fetchPromotions, 
-  uploadOrderPhoto, generatePickupWhatsAppStoreLink, fetchPortfolioItems 
+  uploadOrderPhoto, generatePickupWhatsAppStoreLink, fetchPortfolioItems, fetchReviews 
 } from '../services/orderService';
-import { PickupRequest, Product, Promotion, PortfolioItem } from '../types/database';
+import { PickupRequest, Product, Promotion, PortfolioItem, Review } from '../types/database';
 import confetti from 'canvas-confetti';
 
 const TIME_SLOTS = [
@@ -28,6 +29,7 @@ export const SchedulePickupPage: React.FC = () => {
   const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [featuredReviews, setFeaturedReviews] = useState<Review[]>([]);
   const [portfolioCategory, setPortfolioCategory] = useState<string>('all');
   const [lightboxItem, setLightboxItem] = useState<PortfolioItem | null>(null);
   const [lightboxSliderPos, setLightboxSliderPos] = useState<number>(50);
@@ -40,7 +42,6 @@ export const SchedulePickupPage: React.FC = () => {
   const [neighborhood, setNeighborhood] = useState('');
   const [references, setReferences] = useState('');
   const [preferredDate, setPreferredDate] = useState(() => {
-    // Fecha por defecto: Mañana
     const tomorrow = new Date(Date.now() + 86400000);
     return tomorrow.toISOString().split('T')[0];
   });
@@ -64,12 +65,14 @@ export const SchedulePickupPage: React.FC = () => {
 
   const loadStoreData = async () => {
     try {
-      const [settings, prods, promos, port] = await Promise.all([
+      const [settings, prods, promos, port, revs] = await Promise.all([
         fetchBusinessSettings(),
         fetchProducts(),
         fetchPromotions(),
-        fetchPortfolioItems(true, true)
+        fetchPortfolioItems(true),
+        fetchReviews(true, true)
       ]);
+
       if (settings?.store_phone) {
         setStorePhone(settings.store_phone);
       }
@@ -80,14 +83,19 @@ export const SchedulePickupPage: React.FC = () => {
         setPromotions(promos.filter(p => p.is_active));
       }
       if (port && port.length > 0) {
-        setPortfolio(port.filter(p => p.is_active && p.is_featured));
+        setPortfolio(port.filter(p => p.is_active));
       }
-
+      if (revs && revs.length > 0) {
+        setFeaturedReviews(revs);
+      } else {
+        // Fallback: cargar todas las publicadas si no hay marcadas como destacadas aún
+        const allPublished = await fetchReviews(true, false);
+        setFeaturedReviews(allPublished.slice(0, 6));
+      }
     } catch (e) {
       console.error('Error cargando datos de la tienda:', e);
     }
   };
-
 
   const handleToggleService = (serviceName: string) => {
     setSelectedServices(prev => 
@@ -180,6 +188,19 @@ export const SchedulePickupPage: React.FC = () => {
     setCardSliderPositions(prev => ({ ...prev, [itemId]: pos }));
   };
 
+  const scrollToReferences = () => {
+    const el = document.getElementById('referencias');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const scrollToForm = () => {
+    const el = document.getElementById('booking-form');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -236,7 +257,6 @@ export const SchedulePickupPage: React.FC = () => {
         colors: ['#D4AF37', '#F5ECC6', '#FFFFFF', '#38BDF8', '#10B981']
       });
 
-      // Abrir WhatsApp automáticamente en una pestaña nueva
       window.open(waLink, '_blank');
 
     } catch (err: any) {
@@ -246,18 +266,6 @@ export const SchedulePickupPage: React.FC = () => {
       setIsSubmitting(false);
     }
   };
-
-  // Servicios sugeridos por defecto si no hay en base de datos
-  const defaultServicesList = availableProducts.length > 0
-    ? availableProducts.map(p => p.name)
-    : [
-        'Limpieza Detallada',
-        'Limpieza Básica',
-        'Blanqueamiento de Suela',
-        'Lavado de Gorra',
-        'Restauración / Repintado',
-        'Tratamiento Gamuza / Nubuck'
-      ];
 
   // Pantalla de confirmación de éxito
   if (submittedPickup) {
@@ -298,134 +306,169 @@ export const SchedulePickupPage: React.FC = () => {
                 <span className="text-slate-400 block mb-0.5 font-medium flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5 text-gold-400" /> Fecha solicitada:
                 </span>
-                <span className="font-semibold text-slate-200 text-sm">{submittedPickup.preferred_date}</span>
+                <span className="font-bold text-slate-200">
+                  {new Date(submittedPickup.preferred_date + 'T00:00:00').toLocaleDateString('es-MX', {
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'short'
+                  })}
+                </span>
               </div>
+
               <div className="bg-dark-950/70 p-3 rounded-xl border border-dark-800">
                 <span className="text-slate-400 block mb-0.5 font-medium flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-gold-400" /> Turno / Horario:
+                  <Clock className="w-3.5 h-3.5 text-gold-400" /> Horario:
                 </span>
-                <span className="font-semibold text-slate-200 text-sm">{submittedPickup.preferred_time_slot}</span>
+                <span className="font-bold text-slate-200">
+                  {submittedPickup.preferred_time_slot}
+                </span>
               </div>
-            </div>
 
-            <div className="bg-dark-950/70 p-3 rounded-xl border border-dark-800 text-xs">
-              <span className="text-slate-400 block mb-0.5 font-medium flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-gold-400" /> Dirección de recolección:
-              </span>
-              <p className="font-medium text-slate-200">{submittedPickup.address}</p>
-              {submittedPickup.neighborhood && (
-                <p className="text-slate-400 mt-0.5">Colonia: {submittedPickup.neighborhood}</p>
-              )}
-              {submittedPickup.references && (
-                <p className="text-slate-400 italic mt-0.5">Ref: {submittedPickup.references}</p>
-              )}
-            </div>
+              <div className="bg-dark-950/70 p-3 rounded-xl border border-dark-800 sm:col-span-2">
+                <span className="text-slate-400 block mb-0.5 font-medium flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-gold-400" /> Dirección:
+                </span>
+                <span className="font-semibold text-slate-200 block">
+                  {submittedPickup.address}
+                </span>
+                {submittedPickup.neighborhood && (
+                  <span className="text-slate-400 text-[11px] block">
+                    Col. {submittedPickup.neighborhood}
+                  </span>
+                )}
+                {submittedPickup.references && (
+                  <span className="text-slate-400 text-[11px] block mt-0.5">
+                    Ref: {submittedPickup.references}
+                  </span>
+                )}
+              </div>
 
-            <div className="bg-dark-950/70 p-3 rounded-xl border border-dark-800 text-xs">
-              <span className="text-slate-400 block mb-0.5 font-medium flex items-center gap-1">
-                <Package className="w-3.5 h-3.5 text-gold-400" /> Pares / Artículos ({submittedPickup.item_count}):
-              </span>
-              {submittedPickup.shoes_details && (
-                <p className="font-medium text-slate-200 mt-1">{submittedPickup.shoes_details}</p>
-              )}
-              {submittedPickup.services && submittedPickup.services.length > 0 && (
-                <p className="text-slate-300 mt-1">
-                  <span className="text-slate-500">Servicios:</span> {submittedPickup.services.join(', ')}
+              <div className="bg-dark-950/70 p-3 rounded-xl border border-dark-800 sm:col-span-2">
+                <span className="text-slate-400 block mb-0.5 font-medium flex items-center gap-1">
+                  <Package className="w-3.5 h-3.5 text-gold-400" /> Artículos ({submittedPickup.item_count} par{submittedPickup.item_count > 1 ? 'es' : ''}):
+                </span>
+                <p className="font-semibold text-slate-200">
+                  {submittedPickup.shoes_details || `${submittedPickup.item_count} pares`}
                 </p>
-              )}
+                {submittedPickup.services && submittedPickup.services.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {submittedPickup.services.map((srv, sIdx) => (
+                      <span key={sIdx} className="px-2 py-0.5 rounded text-[10px] bg-gold-500/15 text-gold-300 border border-gold-500/30">
+                        {srv}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Botón de Acción Principal para enviar WhatsApp */}
+          {/* Botón WhatsApp */}
           <div className="space-y-3">
             <a
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-xl font-extrabold text-slate-950 bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-500 hover:from-emerald-300 hover:to-teal-400 shadow-[0_0_25px_rgba(16,185,129,0.35)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-base"
+              className="w-full flex items-center justify-center gap-2.5 py-4 px-6 rounded-2xl font-extrabold text-dark-950 bg-emerald-400 hover:bg-emerald-300 shadow-[0_0_30px_rgba(52,211,153,0.35)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-sm"
             >
-              <WhatsAppIcon className="w-6 h-6 shrink-0 fill-current" />
-              <span>Enviar WhatsApp al Negocio</span>
-              <ArrowRight className="w-5 h-5 shrink-0" />
+              <WhatsAppIcon className="w-5 h-5 fill-dark-950" />
+              <span>Abrir WhatsApp con mi Solicitud</span>
+              <ArrowRight className="w-4 h-4" />
             </a>
 
             <button
+              type="button"
               onClick={() => {
                 setSubmittedPickup(null);
+                setPairs([{ model: '', photos: [] }]);
                 setCustomerName('');
                 setCustomerPhone('');
                 setAddress('');
                 setNeighborhood('');
                 setReferences('');
-                setItemCount(1);
-                setPairs([{ model: '', photos: [] }]);
                 setNotes('');
               }}
-              className="w-full py-3 px-4 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 bg-dark-900/60 hover:bg-dark-800 border border-dark-800 transition-all text-center"
+              className="w-full py-3 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-dark-900/60 hover:bg-dark-900 border border-dark-800 transition-colors"
             >
-              Agendar otra colecta
+              Agendar otra recolección
             </button>
           </div>
 
         </div>
 
         {/* Footer */}
-        <footer className="text-center text-xs text-slate-600 pb-4">
-          <p>© {new Date().getFullYear()} Mr Clean Sneakers — Cuidado y Restauración Profesional</p>
+        <footer className="text-center text-xs text-slate-500 py-4 border-t border-dark-900">
+          <p>© {new Date().getFullYear()} Mr Clean Sneakers — Limpieza & Restauración</p>
         </footer>
       </div>
     );
   }
 
-  // Formulario de Agendado
   return (
-    <div className="min-h-screen bg-dark-950 text-slate-100 flex flex-col justify-between selection:bg-gold-500/30 selection:text-gold-200">
+    <div className="min-h-screen bg-dark-950 text-slate-100 selection:bg-gold-500/30 selection:text-gold-200 flex flex-col">
       
-      {/* Top Banner & Header */}
-      <header className="sticky top-0 z-30 bg-dark-900/90 backdrop-blur-md border-b border-gold-500/20 shadow-lg">
-        <div className="max-w-xl mx-auto px-4 py-3 flex items-center justify-between">
+      {/* Top Header */}
+      <header className="bg-dark-900/90 backdrop-blur-md border-b border-gold-500/20 py-3.5 px-4 sticky top-0 z-40">
+        <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img src="/logo.svg" alt="Mr Clean Sneakers" className="w-9 h-9 object-contain drop-shadow" />
+            <img src="/logo.svg" alt="Mr Clean Sneakers" className="w-9 h-9 object-contain" />
             <div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-extrabold text-base tracking-wider bg-gradient-to-r from-gold-300 via-gold-500 to-amber-400 bg-clip-text text-transparent font-serif">
-                  MR CLEAN
-                </span>
-                <span className="text-[10px] uppercase tracking-[0.2em] font-extrabold text-slate-100">
-                  SNEAKERS
-                </span>
-              </div>
-              <p className="text-[9px] text-slate-400">Servicio de Colecta a Domicilio</p>
+              <span className="font-extrabold text-sm tracking-wider bg-gradient-to-r from-gold-300 via-gold-500 to-amber-400 bg-clip-text text-transparent font-serif">
+                MR CLEAN
+              </span>
+              <span className="text-[10px] uppercase tracking-[0.2em] font-extrabold text-slate-100 ml-1">
+                SNEAKERS
+              </span>
             </div>
           </div>
 
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-gold-500/10 text-gold-400 border border-gold-500/30">
-            <Sparkles className="w-3 h-3 text-gold-400" />
-            Pick-up Express
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={scrollToReferences}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-dark-950 text-gold-400 border border-gold-500/30 hover:border-gold-400 transition-colors"
+            >
+              <Star className="w-3 h-3 fill-gold-400" />
+              <span>Referencias</span>
+            </button>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-gold-500/10 text-gold-400 border border-gold-500/30">
+              <Sparkles className="w-3 h-3 text-gold-400" />
+              Colectas
+            </span>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-xl mx-auto w-full px-4 py-6 sm:py-8 flex-1">
+      <main className="max-w-xl mx-auto w-full px-4 py-6 sm:py-8 flex-1 space-y-8">
         
         {/* Intro Hero Box */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-dark-900 border border-gold-500/30 text-gold-300 text-xs font-semibold mb-2.5 shadow-sm">
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-dark-900 border border-gold-500/30 text-gold-300 text-xs font-semibold shadow-sm">
             <MapPin className="w-3.5 h-3.5 text-gold-400" />
-            <span>Recogemos tus pares en tu puerta</span>
+            <span>Recogemos tus pares directamente en tu puerta</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-100 font-serif tracking-tight">
             Agenda tu Recolección
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-md mx-auto">
+          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
             Completa tus datos para programar la colecta de tus tenis o gorras. Al terminar, te abrirá WhatsApp con el mensaje listo.
           </p>
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={scrollToReferences}
+              className="text-[11px] text-gold-400 hover:text-gold-300 font-semibold inline-flex items-center gap-1 underline underline-offset-4"
+            >
+              <Star className="w-3 h-3 fill-gold-400" />
+              Ver fotos de trabajos reales y reseñas de clientes ↓
+            </button>
+          </div>
         </div>
 
         {/* Banner de Promociones Activas */}
         {promotions.length > 0 && (
-          <div className="mb-6 space-y-2.5">
+          <div className="space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-gold-400 uppercase tracking-wider px-1">
               <Flame className="w-4 h-4 text-amber-400 animate-pulse" />
               <span>Promociones Especiales Disponibles</span>
@@ -484,237 +527,8 @@ export const SchedulePickupPage: React.FC = () => {
           </div>
         )}
 
-        {/* SECCIÓN DE EVIDENCIA DE CALIDAD Y RESULTADOS REALES */}
-        {portfolio.length > 0 && (
-          <div className="mb-8 space-y-4">
-            
-            {/* Header de la sección */}
-            <div className="bg-gradient-to-br from-dark-900 via-dark-900 to-dark-950 border border-gold-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/10 rounded-full blur-2xl pointer-events-none" />
-              
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-dark-800 pb-3 mb-3">
-                <div>
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-gold-400 uppercase tracking-wider mb-1">
-                    <Sparkles className="w-4 h-4 text-gold-400" />
-                    <span>Nuestra Calidad en Cada Par</span>
-                  </div>
-                  <h2 className="text-base sm:text-lg font-extrabold text-slate-100 font-serif">
-                    Evidencia de Trabajos Terminados
-                  </h2>
-                </div>
-
-                <div className="flex items-center gap-1 text-[11px] text-slate-400">
-                  <Award className="w-3.5 h-3.5 text-gold-400" />
-                  <span>Fotos 100% reales</span>
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-300 mb-3">
-                Desliza la barra horizontal sobre cada foto para comparar el <strong className="text-rose-400">Antes</strong> y el <strong className="text-emerald-400">Después</strong> de nuestro trabajo artesanal.
-              </p>
-
-              {/* Filtros de categorías */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                <button
-                  type="button"
-                  onClick={() => setPortfolioCategory('all')}
-                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                    portfolioCategory === 'all'
-                      ? 'bg-gold-500 text-dark-950 shadow-[0_0_12px_rgba(212,175,55,0.4)]'
-                      : 'bg-dark-950/80 text-slate-400 hover:text-slate-200 border border-dark-700'
-                  }`}
-                >
-                  Todos ({portfolio.length})
-                </button>
-                {Array.from(new Set(portfolio.map(p => p.category))).map(cat => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setPortfolioCategory(cat)}
-                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-                      portfolioCategory === cat
-                        ? 'bg-gold-500 text-dark-950 shadow-[0_0_12px_rgba(212,175,55,0.4)]'
-                        : 'bg-dark-950/80 text-slate-400 hover:text-slate-200 border border-dark-700'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Grid de Trabajos con Sliders Antes/Después */}
-            <div className="grid grid-cols-1 gap-4">
-              {portfolio
-                .filter(item => portfolioCategory === 'all' || item.category === portfolioCategory)
-                .map(item => {
-                  const itemId = item.id || item.title;
-                  const sliderPos = cardSliderPositions[itemId] !== undefined ? cardSliderPositions[itemId] : 50;
-                  const hasBoth = Boolean(item.before_photo && item.after_photo);
-
-                  return (
-                    <div
-                      key={itemId}
-                      className="bg-dark-900/90 rounded-2xl border border-dark-700/80 hover:border-gold-500/50 shadow-xl overflow-hidden transition-all group"
-                    >
-                      {/* Imagen / Visualizador Slider Antes/Después */}
-                      <div className="relative aspect-[4/3] sm:aspect-[16/10] bg-dark-950 select-none overflow-hidden">
-                        {hasBoth ? (
-                          <>
-                            {/* Fondo blur elegante para fotos verticales */}
-                            <img
-                              src={item.after_photo}
-                              alt=""
-                              className="absolute inset-0 w-full h-full object-cover blur-lg opacity-25 scale-110 pointer-events-none"
-                            />
-
-                            {/* Imagen DESPUÉS (Fondo) */}
-                            <img
-                              src={item.after_photo}
-                              alt={`Después - ${item.title}`}
-                              className="absolute inset-0 w-full h-full object-contain p-2"
-                            />
-                            <div className="absolute top-3 right-3 z-10 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/90 text-white shadow backdrop-blur-sm pointer-events-none">
-                              DESPUÉS
-                            </div>
-
-                            {/* Imagen ANTES (Clip-path para preservar proporciones idénticas) */}
-                            <img
-                              src={item.before_photo!}
-                              alt={`Antes - ${item.title}`}
-                              className="absolute inset-0 w-full h-full object-contain p-2 pointer-events-none"
-                              style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
-                            />
-                            <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/90 text-white shadow backdrop-blur-sm pointer-events-none">
-                              ANTES
-                            </div>
-
-                            {/* Manija central indicadora y línea dorada */}
-                            <div
-                              className="absolute inset-y-0 w-0.5 bg-gold-400 shadow-[0_0_20px_rgba(212,175,55,0.9)] pointer-events-none z-10"
-                              style={{ left: `${sliderPos}%` }}
-                            >
-                              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-gold-400 border-2 border-dark-950 flex items-center justify-center text-dark-950 shadow-xl">
-                                <Sliders className="w-3.5 h-3.5 rotate-90" />
-                              </div>
-                            </div>
-
-                            {/* Input range invisible encima para control táctil y mouse */}
-                            <input
-                              type="range"
-                              min={0}
-                              max={100}
-                              value={sliderPos}
-                              onChange={e => handleCardSliderChange(itemId, Number(e.target.value))}
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-20"
-                              title="Arrastra para comparar el antes y después"
-                            />
-                          </>
-                        ) : (
-                          // Solo foto final
-                          <>
-                            <img
-                              src={item.after_photo}
-                              alt=""
-                              className="absolute inset-0 w-full h-full object-cover blur-lg opacity-25 scale-110 pointer-events-none"
-                            />
-                            <img
-                              src={item.after_photo}
-                              alt={item.title}
-                              className="relative w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
-                            />
-                            <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/90 text-white shadow">
-                              RESULTADO FINAL
-                            </div>
-                          </>
-                        )}
-
-                        {/* Botón de Zoom / Pantalla completa */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLightboxItem(item);
-                            setLightboxSliderPos(sliderPos);
-                          }}
-                          className="absolute bottom-3 right-3 z-20 p-2 rounded-xl bg-dark-950/80 hover:bg-dark-950 text-slate-200 border border-dark-700 hover:border-gold-500/50 backdrop-blur-sm shadow-md transition-all flex items-center gap-1 text-[11px] font-semibold"
-                        >
-                          <ZoomIn className="w-3.5 h-3.5 text-gold-400" />
-                          <span className="hidden sm:inline">Ampliar</span>
-                        </button>
-                      </div>
-
-
-                      {/* Ficha descriptiva y CTA de selección */}
-                      <div className="p-4 space-y-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-gold-500/15 text-gold-300 border border-gold-500/30">
-                                {item.category}
-                              </span>
-                              {item.is_featured && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-0.5">
-                                  <Star className="w-2.5 h-2.5 fill-amber-300" /> Destacado
-                                </span>
-                              )}
-                            </div>
-                            <h3 className="text-sm sm:text-base font-bold text-slate-100">{item.title}</h3>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleSelectFromShowcase(item)}
-                            className="shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-gold-500/20 to-amber-500/20 hover:from-gold-500 hover:to-amber-500 text-gold-300 hover:text-dark-950 border border-gold-500/40 transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
-                          >
-                            <span>Quiero este servicio</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        {item.service_name && (
-                          <p className="text-xs text-gold-400 font-medium flex items-center gap-1">
-                            <Sparkles className="w-3 h-3" />
-                            <span>Servicio: {item.service_name}</span>
-                          </p>
-                        )}
-
-                        {item.description && (
-                          <p className="text-xs text-slate-400 leading-relaxed">
-                            {item.description}
-                          </p>
-                        )}
-                      </div>
-
-                    </div>
-                  );
-                })}
-            </div>
-
-            {/* Garantía de Calidad Mr Clean */}
-            <div className="grid grid-cols-3 gap-2 text-center pt-1">
-              <div className="bg-dark-900/60 border border-dark-800 rounded-xl p-2.5">
-                <span className="text-base block mb-0.5">🧼</span>
-                <span className="text-[10px] font-bold text-slate-300 block">Detallado Artesanal</span>
-                <span className="text-[9px] text-slate-500">Sin maltratar materiales</span>
-              </div>
-              <div className="bg-dark-900/60 border border-dark-800 rounded-xl p-2.5">
-                <span className="text-base block mb-0.5">✨</span>
-                <span className="text-[10px] font-bold text-slate-300 block">Desamarillado UV</span>
-                <span className="text-[9px] text-slate-500">Suelas como nuevas</span>
-              </div>
-              <div className="bg-dark-900/60 border border-dark-800 rounded-xl p-2.5">
-                <span className="text-base block mb-0.5">🛡️</span>
-                <span className="text-[10px] font-bold text-slate-300 block">Garantía Total</span>
-                <span className="text-[9px] text-slate-500">Cuidado certificado</span>
-              </div>
-            </div>
-
-          </div>
-        )}
-
         {/* Booking Form */}
         <form id="booking-form" onSubmit={handleSubmit} className="space-y-5">
-
           
           {/* SECCIÓN 1: Contacto */}
           <div className="bg-dark-900/80 backdrop-blur-sm rounded-2xl border border-dark-800 p-4 sm:p-5 space-y-4 shadow-lg">
@@ -755,27 +569,26 @@ export const SchedulePickupPage: React.FC = () => {
                     className="w-full bg-dark-950 border border-dark-700 focus:border-gold-500 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 outline-none transition-all"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">Te contactaremos por este medio para confirmar la llegada.</p>
               </div>
             </div>
           </div>
 
-          {/* SECCIÓN 2: Ubicación */}
+          {/* SECCIÓN 2: Dónde y Cuándo */}
           <div className="bg-dark-900/80 backdrop-blur-sm rounded-2xl border border-dark-800 p-4 sm:p-5 space-y-4 shadow-lg">
             <div className="flex items-center gap-2 border-b border-dark-800 pb-2.5">
               <MapPin className="w-4 h-4 text-gold-400 shrink-0" />
-              <h2 className="text-sm font-bold text-slate-200">2. Dirección de Recolección</h2>
+              <h2 className="text-sm font-bold text-slate-200">2. Dónde y Cuándo Pasamos</h2>
             </div>
 
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Calle y Número <span className="text-gold-400">*</span>
+                  Dirección completa (Calle y Número) <span className="text-gold-400">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ej. Av. Francisco Villa #3401 (Interior 4B)"
+                  placeholder="Ej. Av. Universidad #1420"
                   value={address}
                   onChange={e => setAddress(e.target.value)}
                   className="w-full bg-dark-950 border border-dark-700 focus:border-gold-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 outline-none transition-all"
@@ -785,7 +598,7 @@ export const SchedulePickupPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Colonia o Fraccionamiento
+                    Colonia / Sector
                   </label>
                   <input
                     type="text"
@@ -795,300 +608,231 @@ export const SchedulePickupPage: React.FC = () => {
                     className="w-full bg-dark-950 border border-dark-700 focus:border-gold-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 outline-none transition-all"
                   />
                 </div>
+
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Referencias / Cruces
+                    Referencias de entrega
                   </label>
                   <input
                     type="text"
-                    placeholder="Ej. Frente al OXXO, portón negro"
+                    placeholder="Ej. Casa blanca con reja negra"
                     value={references}
                     onChange={e => setReferences(e.target.value)}
                     className="w-full bg-dark-950 border border-dark-700 focus:border-gold-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 outline-none transition-all"
                   />
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* SECCIÓN 3: Fecha y Horario */}
-          <div className="bg-dark-900/80 backdrop-blur-sm rounded-2xl border border-dark-800 p-4 sm:p-5 space-y-4 shadow-lg">
-            <div className="flex items-center gap-2 border-b border-dark-800 pb-2.5">
-              <Calendar className="w-4 h-4 text-gold-400 shrink-0" />
-              <h2 className="text-sm font-bold text-slate-200">3. Fecha y Turno Preferido</h2>
-            </div>
+              {/* Fecha y Horario */}
+              <div className="pt-1 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Día deseado de recolección <span className="text-gold-400">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={preferredDate}
+                    onChange={e => setPreferredDate(e.target.value)}
+                    className="w-full bg-dark-950 border border-dark-700 focus:border-gold-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 outline-none transition-all"
+                  />
+                </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Fecha Deseada <span className="text-gold-400">*</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  min={new Date().toISOString().split('T')[0]}
-                  value={preferredDate}
-                  onChange={e => setPreferredDate(e.target.value)}
-                  className="w-full bg-dark-950 border border-dark-700 focus:border-gold-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 outline-none transition-all [color-scheme:dark]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Turno de Recolección
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {TIME_SLOTS.map(slot => {
-                    const isSelected = preferredTimeSlot.includes(slot.label);
-                    return (
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    Horario preferido
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {TIME_SLOTS.map(slot => (
                       <button
                         key={slot.id}
                         type="button"
                         onClick={() => setPreferredTimeSlot(`${slot.label} (${slot.hours})`)}
-                        className={`p-3 rounded-xl border text-left transition-all ${
-                          isSelected
-                            ? 'bg-gold-500/15 border-gold-500 text-gold-300 shadow-[0_0_12px_rgba(212,175,55,0.2)]'
-                            : 'bg-dark-950 border-dark-800 text-slate-400 hover:border-dark-700 hover:text-slate-300'
+                        className={`p-2.5 rounded-xl border text-left transition-all ${
+                          preferredTimeSlot.startsWith(slot.label)
+                            ? 'bg-gold-500/15 border-gold-400 text-gold-300 shadow-sm'
+                            : 'bg-dark-950 border-dark-800 text-slate-400 hover:border-dark-700'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
-                            <span>{slot.icon}</span> {slot.label}
-                          </span>
-                          {isSelected && <CheckCircle2 className="w-4 h-4 text-gold-400 shrink-0" />}
+                        <div className="flex items-center gap-1.5 font-bold text-xs">
+                          <span>{slot.icon}</span>
+                          <span>{slot.label}</span>
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-1">{slot.hours}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{slot.hours}</p>
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
               </div>
+
             </div>
           </div>
 
-          {/* SECCIÓN 4: Pares y Servicios */}
+          {/* SECCIÓN 3: Pares y Servicios */}
           <div className="bg-dark-900/80 backdrop-blur-sm rounded-2xl border border-dark-800 p-4 sm:p-5 space-y-4 shadow-lg">
-            <div className="flex items-center gap-2 border-b border-dark-800 pb-2.5">
-              <Package className="w-4 h-4 text-gold-400 shrink-0" />
-              <h2 className="text-sm font-bold text-slate-200">4. Tus Tenis / Artículos</h2>
+            <div className="flex items-center justify-between border-b border-dark-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-gold-400 shrink-0" />
+                <h2 className="text-sm font-bold text-slate-200">3. ¿Cuántos Pares Vas a Entregar?</h2>
+              </div>
+
+              {/* Selector de cantidad */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSetItemCount(pairs.length - 1)}
+                  className="w-8 h-8 rounded-lg bg-dark-950 border border-dark-700 hover:border-gold-500/50 flex items-center justify-center text-slate-300 font-bold transition-colors"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <span className="font-mono font-extrabold text-base text-gold-400 px-2 min-w-[2rem] text-center">
+                  {pairs.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleSetItemCount(pairs.length + 1)}
+                  className="w-8 h-8 rounded-lg bg-dark-950 border border-dark-700 hover:border-gold-500/50 flex items-center justify-center text-slate-300 font-bold transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              {/* Cantidad de pares */}
-              <div className="flex items-center justify-between bg-dark-950 p-3.5 rounded-xl border border-dark-800">
-                <div>
-                  <span className="text-sm font-bold text-slate-200 block">Cantidad de Pares / Artículos</span>
-                  <span className="text-[11px] text-slate-400">¿Cuántos pares o gorras vas a entregar?</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleSetItemCount(itemCount - 1)}
-                    className="w-8 h-8 rounded-lg bg-dark-800 hover:bg-dark-700 border border-dark-700 flex items-center justify-center text-slate-200 transition-colors"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <span className="text-base font-extrabold text-gold-400 w-6 text-center">{itemCount}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleSetItemCount(itemCount + 1)}
-                    className="w-8 h-8 rounded-lg bg-dark-800 hover:bg-dark-700 border border-dark-700 flex items-center justify-center text-slate-200 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Indicador de calificación de promociones por volumen */}
-              {(() => {
-                const bulkPromo = promotions.find(p => p.promo_type === 'bulk_pairs' && (p.min_pairs || 0) > 0);
-                if (!bulkPromo) return null;
-                const min = bulkPromo.min_pairs || 5;
-                const qualifies = itemCount >= min;
-
-                return qualifies ? (
-                  <div className="bg-emerald-500/10 border border-emerald-500/40 rounded-xl p-3 flex items-center justify-between gap-2 text-xs animate-fadeIn">
-                    <div className="flex items-center gap-2">
-                      <span className="text-emerald-400 font-bold">✨ ¡Aplica Promo {bulkPromo.title}!</span>
-                      <span className="text-slate-300 text-[11px]">Tus pares quedan a <strong className="text-emerald-300 font-mono">${bulkPromo.special_price_per_pair} MXN</strong> c/u</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                      Ahorro Activado
-                    </span>
-                  </div>
-                ) : (
-                  <div className="bg-gradient-to-r from-gold-500/10 via-dark-900 to-dark-950 border border-gold-500/30 rounded-xl p-3 flex items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2">
-                      <Flame className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
-                      <span className="text-slate-300 text-[11px]">
-                        Agrega <strong className="text-gold-300 font-mono">{min - itemCount} par(es) más</strong> para pagar sólo <strong className="text-gold-300 font-mono">${bulkPromo.special_price_per_pair}</strong> cada par
-                      </span>
-                    </div>
+            {/* Servicios deseados */}
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-slate-300">
+                Servicios que te interesan para estos pares:
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {(availableProducts.length > 0 ? availableProducts.map(p => p.name) : [
+                  'Limpieza Detallada',
+                  'Limpieza Básica',
+                  'Blanqueamiento de Suela',
+                  'Lavado de Gorra',
+                  'Restauración / Repintado',
+                  'Tratamiento Gamuza'
+                ]).map(srv => {
+                  const isChecked = selectedServices.includes(srv);
+                  return (
                     <button
+                      key={srv}
                       type="button"
-                      onClick={() => handleSetItemCount(min)}
-                      className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gold-500 hover:bg-gold-400 text-dark-950 transition-all shrink-0 shadow-sm"
+                      onClick={() => handleToggleService(srv)}
+                      className={`text-xs px-3 py-1.5 rounded-xl border font-medium transition-all ${
+                        isChecked
+                          ? 'bg-gold-500/20 border-gold-400 text-gold-300 font-bold'
+                          : 'bg-dark-950 border-dark-700 text-slate-400 hover:text-slate-200'
+                      }`}
                     >
-                      Activar {min} pares
+                      {isChecked ? '✓ ' : '+ '} {srv}
                     </button>
-                  </div>
-                );
-              })()}
-
-              {/* Servicios requeridos */}
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                  Servicios de Interés (puedes seleccionar varios)
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {defaultServicesList.map(serv => {
-                    const active = selectedServices.includes(serv);
-                    return (
-                      <button
-                        key={serv}
-                        type="button"
-                        onClick={() => handleToggleService(serv)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                          active
-                            ? 'bg-gold-500/20 border-gold-500/80 text-gold-300 shadow-sm'
-                            : 'bg-dark-950 border-dark-800 text-slate-400 hover:border-dark-700 hover:text-slate-300'
-                        }`}
-                      >
-                        {active ? '✓ ' : '+ '}{serv}
-                      </button>
-                    );
-                  })}
-                </div>
+                  );
+                })}
               </div>
+            </div>
 
-              {/* Detalle por cada par / artículo dinámico */}
-              <div className="space-y-3.5 pt-2">
-                <span className="text-xs font-bold text-slate-300 block">
-                  Detalle de cada par / artículo ({pairs.length}):
-                </span>
-
-                {pairs.map((pair, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-dark-950/90 border border-dark-700/80 rounded-2xl p-4 space-y-3 relative overflow-hidden transition-all shadow-md"
-                  >
-                    <div className="flex items-center justify-between border-b border-dark-800 pb-2">
-                      <span className="text-xs font-bold text-gold-400 flex items-center gap-1.5 font-mono">
-                        <Package className="w-3.5 h-3.5 text-gold-400" />
-                        {pairs.length === 1 ? 'Par / Artículo #1' : `Par / Artículo #${idx + 1}`}
+            {/* Pares individuales */}
+            <div className="space-y-3 pt-1">
+              {pairs.map((pair, idx) => (
+                <div key={idx} className="bg-dark-950/70 border border-dark-800 rounded-xl p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gold-400 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-gold-500/20 border border-gold-500/40 text-gold-400 text-[11px] flex items-center justify-center font-mono">
+                        {idx + 1}
                       </span>
-                      {pairs.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (pairs.length > 1) {
-                              setPairs(prev => prev.filter((_, i) => i !== idx));
-                              setItemCount(prev => Math.max(1, prev - 1));
-                            }
-                          }}
-                          className="text-[11px] text-slate-500 hover:text-rose-400 flex items-center gap-1 transition-colors"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          <span>Quitar par</span>
-                        </button>
+                      Par #{idx + 1}
+                    </span>
+                    {pairs.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPairs(prev => prev.filter((_, pIdx) => pIdx !== idx));
+                        }}
+                        className="text-slate-500 hover:text-rose-400 p-1 text-xs transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-400 mb-1">
+                      Modelo o tipo de tenis <span className="text-slate-600">(opcional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Nike Dunk Low, Jordan 1, Adidas Samba..."
+                      value={pair.model}
+                      onChange={e => handleUpdatePairModel(idx, e.target.value)}
+                      className="w-full bg-dark-900 border border-dark-700 focus:border-gold-500 rounded-xl px-3 py-1.5 text-xs text-slate-100 placeholder-slate-600 outline-none transition-all"
+                    />
+                  </div>
+
+                  {/* Fotos del par */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] text-slate-400 flex items-center gap-1">
+                        <Camera className="w-3 h-3 text-gold-400" />
+                        <span>Foto previa</span>
+                        <span className="text-slate-600">(opcional)</span>
+                      </label>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {pair.photos.map((url, pIdx) => (
+                        <div key={pIdx} className="relative w-14 h-14 rounded-lg overflow-hidden border border-dark-700 bg-dark-900">
+                          <img src={url} alt={`Par ${idx + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePairPhoto(idx, pIdx)}
+                            className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-rose-500 text-white"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+
+                      {pair.photos.length < 3 && (
+                        <label className="w-14 h-14 rounded-lg border border-dashed border-dark-700 hover:border-gold-500/50 bg-dark-900/50 flex flex-col items-center justify-center cursor-pointer transition-all">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={e => handlePairPhotoUpload(idx, e)}
+                            disabled={uploadingPairIndex === idx}
+                          />
+                          {uploadingPairIndex === idx ? (
+                            <RefreshCw className="w-4 h-4 text-gold-400 animate-spin" />
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4 text-slate-400" />
+                              <span className="text-[8px] text-slate-400">Foto</span>
+                            </>
+                          )}
+                        </label>
                       )}
                     </div>
-
-                    {/* Modelo de este par */}
-                    <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1">
-                        Modelo de este par / artículo <span className="text-slate-500 text-[10px]">(opcional)</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder={
-                          idx === 0
-                            ? "Ej. Adidas Samba OG Black"
-                            : idx === 1
-                            ? "Ej. Nike Air Jordan 4 Retro"
-                            : idx === 2
-                            ? "Ej. Gorra New Era 59FIFTY"
-                            : "Ej. Modelo del par..."
-                        }
-                        value={pair.model}
-                        onChange={e => handleUpdatePairModel(idx, e.target.value)}
-                        className="w-full bg-dark-900 border border-dark-700 focus:border-gold-500 rounded-xl px-3.5 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition-all"
-                      />
-                    </div>
-
-                    {/* Fotos de este par */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-                          <Camera className="w-3.5 h-3.5 text-gold-400" />
-                          <span>Fotos de este par</span>
-                          <span className="text-slate-500 text-[10px]">(opcional)</span>
-                        </label>
-                        <span className="text-[10px] text-slate-500">Para cotización previa</span>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {pair.photos.map((url, pIdx) => (
-                          <div
-                            key={pIdx}
-                            className="relative w-16 h-16 rounded-xl overflow-hidden border border-dark-700 bg-dark-900 group"
-                          >
-                            <img
-                              src={url}
-                              alt={`Par ${idx + 1} - Foto ${pIdx + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleRemovePairPhoto(idx, pIdx)}
-                              className="absolute top-0.5 right-0.5 p-1 rounded-full bg-rose-500/90 text-white hover:bg-rose-600 transition-colors shadow"
-                            >
-                              <Trash2 className="w-2.5 h-2.5" />
-                            </button>
-                          </div>
-                        ))}
-
-                        {pair.photos.length < 3 && (
-                          <label className="w-16 h-16 rounded-xl border border-dashed border-dark-700 hover:border-gold-500/60 bg-dark-900/60 hover:bg-gold-500/5 flex flex-col items-center justify-center cursor-pointer transition-all">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              className="hidden"
-                              onChange={e => handlePairPhotoUpload(idx, e)}
-                              disabled={uploadingPairIndex === idx}
-                            />
-                            {uploadingPairIndex === idx ? (
-                              <RefreshCw className="w-4 h-4 text-gold-400 animate-spin" />
-                            ) : (
-                              <>
-                                <Plus className="w-4 h-4 text-slate-400 mb-0.5" />
-                                <span className="text-[8px] text-slate-400 font-medium">Subir foto</span>
-                              </>
-                            )}
-                          </label>
-                        )}
-                      </div>
-                    </div>
                   </div>
-                ))}
-              </div>
 
-              {/* Notas adicionales */}
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Notas o indicaciones adicionales (opcional)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Ej. Tocar el timbre de arriba, avisar 15 mins antes, manchas difíciles de grasa..."
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  className="w-full bg-dark-950 border border-dark-700 focus:border-gold-500 rounded-xl px-3.5 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none transition-all resize-none"
-                />
-              </div>
-
+                </div>
+              ))}
             </div>
+
+            {/* Notas */}
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1">
+                Instrucciones o notas adicionales (opcional)
+              </label>
+              <textarea
+                rows={2}
+                placeholder="Ej. Tocar timbre de arriba, manchas difíciles en la suela..."
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                className="w-full bg-dark-950 border border-dark-700 focus:border-gold-500 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-600 outline-none transition-all resize-none"
+              />
+            </div>
+
           </div>
 
           {/* Botón de Envío */}
@@ -1119,11 +863,331 @@ export const SchedulePickupPage: React.FC = () => {
 
         </form>
 
+        {/* ========================================================= */}
+        {/* APARTADO DE REFERENCIAS: GALERÍA ANTES/DESPUÉS Y RESEÑAS */}
+        {/* ========================================================= */}
+        <section
+          id="referencias"
+          className="scroll-mt-6 bg-gradient-to-b from-dark-900 via-dark-900 to-dark-950 border-2 border-gold-500/40 rounded-3xl p-5 sm:p-7 shadow-2xl space-y-6 relative overflow-hidden"
+        >
+          {/* Decorative Glows */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-gold-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Header de la Sección de Referencias */}
+          <div className="text-center space-y-2 border-b border-dark-800 pb-5">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/30 text-gold-400 text-xs font-bold tracking-wider uppercase">
+              <Award className="w-3.5 h-3.5" />
+              Referencias & Calidad Mr Clean
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-white font-serif">
+              Evidencia Real y Opiniones de Clientes
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
+              Comprueba los resultados de nuestros trabajos de restauración y las calificaciones de quienes ya confían en nosotros.
+            </p>
+          </div>
+
+          {/* 1. GALERÍA DE TRABAJOS (ANTES Y DESPUÉS) */}
+          {portfolio.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-gold-400" />
+                  <h3 className="text-sm font-extrabold text-slate-100 uppercase tracking-wider">
+                    Galería Antes y Después
+                  </h3>
+                </div>
+                <span className="text-[11px] text-slate-400">Desliza para comparar</span>
+              </div>
+
+              {/* Filtros de categorías de la galería */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setPortfolioCategory('all')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                    portfolioCategory === 'all'
+                      ? 'bg-gold-500 text-dark-950 shadow-gold-glow-sm'
+                      : 'bg-dark-950 text-slate-400 hover:text-slate-200 border border-dark-700'
+                  }`}
+                >
+                  Todos ({portfolio.length})
+                </button>
+                {Array.from(new Set(portfolio.map(p => p.category))).map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setPortfolioCategory(cat)}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+                      portfolioCategory === cat
+                        ? 'bg-gold-500 text-dark-950 shadow-gold-glow-sm'
+                        : 'bg-dark-950 text-slate-400 hover:text-slate-200 border border-dark-700'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Grid de Trabajos con Sliders Antes/Después */}
+              <div className="grid grid-cols-1 gap-4">
+                {portfolio
+                  .filter(item => portfolioCategory === 'all' || item.category === portfolioCategory)
+                  .map(item => {
+                    const itemId = item.id || item.title;
+                    const sliderPos = cardSliderPositions[itemId] !== undefined ? cardSliderPositions[itemId] : 50;
+                    const hasBoth = Boolean(item.before_photo && item.after_photo);
+
+                    return (
+                      <div
+                        key={itemId}
+                        className="bg-dark-950/80 rounded-2xl border border-dark-800 hover:border-gold-500/40 shadow-xl overflow-hidden transition-all group"
+                      >
+                        {/* Visualizador Slider Antes/Después */}
+                        <div className="relative aspect-[4/3] sm:aspect-[16/10] bg-dark-950 select-none overflow-hidden">
+                          {hasBoth ? (
+                            <>
+                              {/* Fondo blur */}
+                              <img
+                                src={item.after_photo}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover blur-lg opacity-25 scale-110 pointer-events-none"
+                              />
+
+                              {/* Imagen DESPUÉS */}
+                              <img
+                                src={item.after_photo}
+                                alt={`Después - ${item.title}`}
+                                className="absolute inset-0 w-full h-full object-contain p-2"
+                              />
+                              <div className="absolute top-3 right-3 z-10 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/90 text-white shadow pointer-events-none">
+                                DESPUÉS
+                              </div>
+
+                              {/* Imagen ANTES */}
+                              <img
+                                src={item.before_photo!}
+                                alt={`Antes - ${item.title}`}
+                                className="absolute inset-0 w-full h-full object-contain p-2 pointer-events-none"
+                                style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+                              />
+                              <div className="absolute top-3 left-3 z-10 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/90 text-white shadow pointer-events-none">
+                                ANTES
+                              </div>
+
+                              {/* Manija central */}
+                              <div
+                                className="absolute inset-y-0 w-0.5 bg-gold-400 shadow-[0_0_20px_rgba(212,175,55,0.9)] pointer-events-none z-10"
+                                style={{ left: `${sliderPos}%` }}
+                              >
+                                <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-gold-400 border-2 border-dark-950 flex items-center justify-center text-dark-950 shadow-xl">
+                                  <Sliders className="w-3.5 h-3.5 rotate-90" />
+                                </div>
+                              </div>
+
+                              {/* Input range */}
+                              <input
+                                type="range"
+                                min={0}
+                                max={100}
+                                value={sliderPos}
+                                onChange={e => handleCardSliderChange(itemId, Number(e.target.value))}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-20"
+                                title="Arrastra para comparar el antes y después"
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <img
+                                src={item.after_photo}
+                                alt=""
+                                className="absolute inset-0 w-full h-full object-cover blur-lg opacity-25 scale-110 pointer-events-none"
+                              />
+                              <img
+                                src={item.after_photo}
+                                alt={item.title}
+                                className="relative w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/90 text-white shadow">
+                                RESULTADO FINAL
+                              </div>
+                            </>
+                          )}
+
+                          {/* Botón de Zoom */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLightboxItem(item);
+                              setLightboxSliderPos(sliderPos);
+                            }}
+                            className="absolute bottom-3 right-3 z-20 p-2 rounded-xl bg-dark-950/80 hover:bg-dark-950 text-slate-200 border border-dark-700 hover:border-gold-500/50 backdrop-blur-sm shadow-md transition-all flex items-center gap-1 text-[11px] font-semibold"
+                          >
+                            <ZoomIn className="w-3.5 h-3.5 text-gold-400" />
+                            <span className="hidden sm:inline">Ampliar</span>
+                          </button>
+                        </div>
+
+                        {/* Ficha descriptiva y CTA */}
+                        <div className="p-4 space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-gold-500/15 text-gold-300 border border-gold-500/30">
+                                  {item.category}
+                                </span>
+                                {item.is_featured && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-0.5">
+                                    <Star className="w-2.5 h-2.5 fill-amber-300" /> Destacado
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="text-sm sm:text-base font-bold text-slate-100">{item.title}</h4>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleSelectFromShowcase(item)}
+                              className="shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-gold-500/20 to-amber-500/20 hover:from-gold-500 hover:to-amber-500 text-gold-300 hover:text-dark-950 border border-gold-500/40 transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                            >
+                              <span>Pedir este servicio</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {item.service_name && (
+                            <p className="text-xs text-gold-400 font-medium flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" />
+                              <span>Servicio: {item.service_name}</span>
+                            </p>
+                          )}
+
+                          {item.description && (
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                              {item.description}
+                            </p>
+                          )}
+                        </div>
+
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* 2. RESEÑAS Y TESTIMONIOS DESTACADOS */}
+          {featuredReviews.length > 0 && (
+            <div className="space-y-4 pt-2 border-t border-dark-800">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Star className="w-4 h-4 text-gold-400 fill-gold-400" />
+                  <h3 className="text-sm font-extrabold text-slate-100 uppercase tracking-wider">
+                    Opiniones Destacadas de Clientes
+                  </h3>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-gold-400 font-bold bg-dark-950 px-2.5 py-1 rounded-lg border border-dark-700">
+                  <Star className="w-3.5 h-3.5 fill-gold-400" />
+                  <span>5.0 / 5.0</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {featuredReviews.map((rev, rIdx) => (
+                  <div
+                    key={rev.id || rIdx}
+                    className="bg-dark-950/90 border border-dark-800 hover:border-gold-500/30 rounded-2xl p-4 space-y-2.5 shadow-md flex flex-col justify-between"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between border-b border-dark-800/60 pb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-gold-500/20 text-gold-300 font-bold text-xs flex items-center justify-center border border-gold-500/30">
+                            {rev.customer_name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-white leading-tight">{rev.customer_name}</p>
+                            <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Cliente Verificado
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Stars */}
+                        <div className="flex text-gold-400">
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <Star
+                              key={star}
+                              className={`w-3 h-3 ${rev.rating >= star ? 'fill-gold-400 text-gold-400' : 'text-dark-700'}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      {rev.comment && (
+                        <p className="text-xs text-slate-300 italic leading-relaxed">
+                          "{rev.comment}"
+                        </p>
+                      )}
+                    </div>
+
+                    {rev.service_aspects && rev.service_aspects.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {rev.service_aspects.map((aspect, aIdx) => (
+                          <span
+                            key={aIdx}
+                            className="text-[9px] font-medium px-2 py-0.5 rounded bg-gold-500/10 text-gold-300 border border-gold-500/20"
+                          >
+                            ✓ {aspect}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 3. GARANTÍAS MR CLEAN SNEAKERS */}
+          <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-dark-800">
+            <div className="bg-dark-950/80 border border-dark-800 rounded-xl p-3">
+              <span className="text-lg block mb-1">🧼</span>
+              <span className="text-[11px] font-bold text-slate-200 block">Detallado Artesanal</span>
+              <span className="text-[9px] text-slate-400">Materiales protegidos</span>
+            </div>
+            <div className="bg-dark-950/80 border border-dark-800 rounded-xl p-3">
+              <span className="text-lg block mb-1">✨</span>
+              <span className="text-[11px] font-bold text-slate-200 block">Desamarillado UV</span>
+              <span className="text-[9px] text-slate-400">Suelas como nuevas</span>
+            </div>
+            <div className="bg-dark-950/80 border border-dark-800 rounded-xl p-3">
+              <span className="text-lg block mb-1">🛡️</span>
+              <span className="text-[11px] font-bold text-slate-200 block">Garantía Total</span>
+              <span className="text-[9px] text-slate-400">Satisfacción 100%</span>
+            </div>
+          </div>
+
+          {/* Botón para volver arriba al formulario */}
+          <div className="text-center pt-2">
+            <button
+              type="button"
+              onClick={scrollToForm}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gold-500/15 hover:bg-gold-500/25 text-gold-300 border border-gold-500/30 text-xs font-bold transition-all shadow-sm active:scale-95"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+              <span>Subir y Agendar mi Colecta</span>
+            </button>
+          </div>
+
+        </section>
+
       </main>
 
       {/* Simple Footer */}
-      <footer className="border-t border-dark-800/80 bg-dark-950/90 py-4 px-4 text-center text-xs text-slate-500">
-        <p>© {new Date().getFullYear()} Mr Clean Sneakers — Limpieza y Restauración de Tenis</p>
+      <footer className="border-t border-dark-800/80 bg-dark-950/90 py-5 px-4 text-center text-xs text-slate-500 space-y-1">
+        <p className="font-semibold text-slate-400">Mr Clean Sneakers — Limpieza y Restauración Especializada</p>
+        <p>© {new Date().getFullYear()} Todos los derechos reservados.</p>
       </footer>
 
       {/* MODAL LIGHTBOX DE EVIDENCIA EN ALTA RESOLUCIÓN */}
@@ -1151,18 +1215,15 @@ export const SchedulePickupPage: React.FC = () => {
             {/* Lightbox Media Body */}
             <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
               
-              {/* Visualizador interactivo */}
               <div className="relative aspect-[4/3] sm:aspect-[16/10] max-h-[65vh] rounded-2xl overflow-hidden border border-dark-700 bg-dark-950 select-none shadow-2xl">
                 {lightboxItem.before_photo ? (
                   <>
-                    {/* Fondo blur elegante */}
                     <img
                       src={lightboxItem.after_photo}
                       alt=""
                       className="absolute inset-0 w-full h-full object-cover blur-xl opacity-25 scale-110 pointer-events-none"
                     />
 
-                    {/* Después */}
                     <img
                       src={lightboxItem.after_photo}
                       alt="Después"
@@ -1172,7 +1233,6 @@ export const SchedulePickupPage: React.FC = () => {
                       DESPUÉS
                     </div>
 
-                    {/* Antes con clip-path exacto */}
                     <img
                       src={lightboxItem.before_photo}
                       alt="Antes"
@@ -1183,7 +1243,6 @@ export const SchedulePickupPage: React.FC = () => {
                       ANTES
                     </div>
 
-                    {/* Manija Central */}
                     <div
                       className="absolute inset-y-0 w-0.5 bg-gold-400 shadow-[0_0_25px_rgba(212,175,55,0.9)] pointer-events-none z-10"
                       style={{ left: `${lightboxSliderPos}%` }}
@@ -1193,7 +1252,6 @@ export const SchedulePickupPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Slider input */}
                     <input
                       type="range"
                       min={0}
@@ -1218,7 +1276,6 @@ export const SchedulePickupPage: React.FC = () => {
                   </>
                 )}
               </div>
-
 
               {/* Info y botón de agendado */}
               <div className="bg-dark-950 rounded-2xl p-4 border border-dark-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1257,4 +1314,3 @@ export const SchedulePickupPage: React.FC = () => {
     </div>
   );
 };
-

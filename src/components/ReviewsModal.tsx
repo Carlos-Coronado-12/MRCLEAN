@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Review } from '../types/database';
-import { fetchReviews, toggleReviewPublished, deleteReview } from '../services/orderService';
+import { fetchReviews, toggleReviewPublished, toggleReviewFeatured, deleteReview } from '../services/orderService';
 import {
   X, Star, MessageSquare, ThumbsUp, Trash2, Eye, EyeOff, Search,
   Award, Sparkles, Filter, CheckCircle2, User, Phone, Calendar
@@ -22,6 +22,7 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [ratingFilter, setRatingFilter] = useState<number | 'all'>('all');
   const [filterPublished, setFilterPublished] = useState<'all' | 'published' | 'hidden'>('all');
+  const [filterFeatured, setFilterFeatured] = useState<'all' | 'featured'>('all');
 
   useEffect(() => {
     if (isOpen) {
@@ -49,6 +50,17 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
       setReviews(prev => prev.map(r => (r.id === review.id || r.order_number === review.order_number) ? updated : r));
     } catch (err) {
       console.error('Error al cambiar visibilidad de reseña:', err);
+    }
+  };
+
+  const handleToggleFeatured = async (review: Review) => {
+    const identifier = review.id || review.order_number;
+    if (!identifier) return;
+    try {
+      const updated = await toggleReviewFeatured(identifier, !review.is_featured);
+      setReviews(prev => prev.map(r => (r.id === review.id || r.order_number === review.order_number) ? updated : r));
+    } catch (err) {
+      console.error('Error al cambiar destacado de reseña:', err);
     }
   };
 
@@ -101,7 +113,14 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
         ? r.is_published !== false
         : r.is_published === false;
 
-    return matchSearch && matchRating && matchPublished;
+    const matchFeatured =
+      filterFeatured === 'all'
+        ? true
+        : filterFeatured === 'featured'
+        ? r.is_featured === true
+        : r.is_featured !== true;
+
+    return matchSearch && matchRating && matchPublished && matchFeatured;
   });
 
   return (
@@ -229,9 +248,18 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
                 onChange={e => setFilterPublished(e.target.value as any)}
                 className="bg-dark-950 border border-dark-700 rounded-xl px-3 py-2 text-xs text-slate-300 focus:border-gold-400"
               >
-                <option value="all">Todas</option>
-                <option value="published">Publicadas</option>
+                <option value="all">Publicadas y Ocultas</option>
+                <option value="published">Sólo Publicadas</option>
                 <option value="hidden">Ocultas</option>
+              </select>
+
+              <select
+                value={filterFeatured}
+                onChange={e => setFilterFeatured(e.target.value as any)}
+                className="bg-dark-950 border border-dark-700 rounded-xl px-3 py-2 text-xs text-slate-300 focus:border-gold-400"
+              >
+                <option value="all">Todas (Destacadas y Normales)</option>
+                <option value="featured">⭐ Sólo Destacadas en Colecta</option>
               </select>
             </div>
           </div>
@@ -255,7 +283,11 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
               {filteredReviews.map(review => (
                 <div
                   key={review.id || review.order_number}
-                  className="bg-dark-950 border border-dark-800 hover:border-gold-500/30 transition-all rounded-2xl p-4 sm:p-5 space-y-3"
+                  className={`bg-dark-950 border transition-all rounded-2xl p-4 sm:p-5 space-y-3 ${
+                    review.is_featured
+                      ? 'border-gold-500/50 shadow-gold-glow-sm bg-gradient-to-r from-dark-950 via-dark-900 to-dark-950'
+                      : 'border-dark-800 hover:border-gold-500/30'
+                  }`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-dark-800/80 pb-3">
                     <div className="flex items-center gap-3">
@@ -263,11 +295,17 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
                         {review.customer_name.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="font-bold text-sm text-white">{review.customer_name}</h4>
                           <span className="text-[10px] font-mono bg-dark-900 border border-dark-700 px-2 py-0.5 rounded text-gold-400 font-bold">
                             #{review.order_number}
                           </span>
+                          {review.is_featured && (
+                            <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-gold-500/20 text-gold-300 border border-gold-500/30 flex items-center gap-1">
+                              <Star className="w-2.5 h-2.5 fill-gold-400 text-gold-400" />
+                              Destacada en Colecta
+                            </span>
+                          )}
                         </div>
                         {review.created_at && (
                           <p className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
@@ -300,6 +338,20 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
 
                       {/* Actions */}
                       <div className="flex items-center gap-1">
+                        {/* Toggle Featured */}
+                        <button
+                          onClick={() => handleToggleFeatured(review)}
+                          className={`p-1.5 rounded-lg border text-xs transition-colors flex items-center gap-1 ${
+                            review.is_featured
+                              ? 'bg-gold-500/20 border-gold-500/40 text-gold-300 hover:bg-gold-500/30'
+                              : 'bg-dark-800 border-dark-700 text-slate-500 hover:text-gold-400'
+                          }`}
+                          title={review.is_featured ? 'Quitar de destacadas en colecta' : 'Destacar en sección de colecta / referencias'}
+                        >
+                          <Star className={`w-3.5 h-3.5 ${review.is_featured ? 'fill-gold-400 text-gold-400' : ''}`} />
+                        </button>
+
+                        {/* Toggle Published */}
                         <button
                           onClick={() => handleTogglePublished(review)}
                           className={`p-1.5 rounded-lg border text-xs transition-colors ${
@@ -311,6 +363,8 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
                         >
                           {review.is_published !== false ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                         </button>
+                        
+                        {/* Delete */}
                         <button
                           onClick={() => handleDelete(review)}
                           className="p-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition-colors"

@@ -365,14 +365,19 @@ CREATE TABLE IF NOT EXISTS public.reviews (
   service_aspects TEXT[] DEFAULT '{}',
   would_recommend BOOLEAN NOT NULL DEFAULT TRUE,
   is_published BOOLEAN NOT NULL DEFAULT TRUE,
+  is_featured BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Si la tabla ya existe, asegurar la columna is_featured:
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS idx_reviews_order_id ON public.reviews(order_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_order_number ON public.reviews(order_number);
 CREATE INDEX IF NOT EXISTS idx_reviews_rating ON public.reviews(rating);
 CREATE INDEX IF NOT EXISTS idx_reviews_published ON public.reviews(is_published);
+CREATE INDEX IF NOT EXISTS idx_reviews_featured ON public.reviews(is_featured);
 CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON public.reviews(created_at DESC);
 
 DROP TRIGGER IF EXISTS update_reviews_updated_at ON public.reviews;

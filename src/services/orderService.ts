@@ -1635,6 +1635,7 @@ const INITIAL_DEMO_REVIEWS: Review[] = [
     service_aspects: ['Limpieza Profunda', 'Cuidado de Materiales', 'Aroma Impecable', 'Puntualidad'],
     would_recommend: true,
     is_published: true,
+    is_featured: true,
     created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
     updated_at: new Date(Date.now() - 86400000 * 3).toISOString()
   },
@@ -1649,6 +1650,7 @@ const INITIAL_DEMO_REVIEWS: Review[] = [
     service_aspects: ['Blanqueamiento de Suelas', 'Atención Rápida', 'Excelente Trato'],
     would_recommend: true,
     is_published: true,
+    is_featured: true,
     created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
     updated_at: new Date(Date.now() - 86400000 * 1).toISOString()
   }
@@ -1671,11 +1673,14 @@ function saveLocalReviews(items: Review[]) {
   localStorage.setItem(LOCAL_STORAGE_REVIEWS_KEY, JSON.stringify(items));
 }
 
-export async function fetchReviews(onlyPublished = false): Promise<Review[]> {
+export async function fetchReviews(onlyPublished = false, onlyFeatured = false): Promise<Review[]> {
   if (isDemoMode) {
     let items = getLocalReviews();
     if (onlyPublished) {
-      items = items.filter(i => i.is_published);
+      items = items.filter(i => i.is_published !== false);
+    }
+    if (onlyFeatured) {
+      items = items.filter(i => i.is_featured === true);
     }
     return items.sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime());
   }
@@ -1689,6 +1694,9 @@ export async function fetchReviews(onlyPublished = false): Promise<Review[]> {
     if (onlyPublished) {
       query = query.eq('is_published', true);
     }
+    if (onlyFeatured) {
+      query = query.eq('is_featured', true);
+    }
 
     const { data, error } = await query;
     if (error) throw error;
@@ -1697,7 +1705,10 @@ export async function fetchReviews(onlyPublished = false): Promise<Review[]> {
     console.warn('Error cargando reseñas de Supabase, usando respaldo local:', err);
     let items = getLocalReviews();
     if (onlyPublished) {
-      items = items.filter(i => i.is_published);
+      items = items.filter(i => i.is_published !== false);
+    }
+    if (onlyFeatured) {
+      items = items.filter(i => i.is_featured === true);
     }
     return items;
   }
@@ -1761,6 +1772,7 @@ export async function createReview(
     service_aspects: reviewData.service_aspects || [],
     would_recommend: reviewData.would_recommend !== false,
     is_published: reviewData.is_published !== false,
+    is_featured: reviewData.is_featured || false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
@@ -1791,7 +1803,8 @@ export async function createReview(
       comment: reviewData.comment || null,
       service_aspects: reviewData.service_aspects || [],
       would_recommend: reviewData.would_recommend !== false,
-      is_published: reviewData.is_published !== false
+      is_published: reviewData.is_published !== false,
+      is_featured: reviewData.is_featured || false
     };
 
     if (reviewData.order_id && isUuid(reviewData.order_id)) {
@@ -1857,6 +1870,46 @@ export async function toggleReviewPublished(identifier: string, is_published: bo
     console.warn('Advertencia actualizando reseña en Supabase:', err);
   }
   return updatedItem || ({ id: identifier, is_published } as any);
+}
+
+export async function toggleReviewFeatured(identifier: string, is_featured: boolean): Promise<Review> {
+  const items = getLocalReviews();
+  const idx = items.findIndex(i => i.id === identifier || i.order_number === identifier);
+  let updatedItem: Review | null = null;
+  if (idx !== -1) {
+    items[idx] = { ...items[idx], is_featured, updated_at: new Date().toISOString() };
+    updatedItem = items[idx];
+    saveLocalReviews(items);
+  }
+
+  if (isDemoMode) {
+    return updatedItem || ({ id: identifier, is_featured } as any);
+  }
+
+  try {
+    if (isUuid(identifier)) {
+      const { data, error } = await supabase
+        .from('reviews')
+        .update({ is_featured, updated_at: new Date().toISOString() })
+        .eq('id', identifier)
+        .select()
+        .single();
+      if (error) console.warn('Aviso actualizando destacado de reseña en Supabase por ID:', error.message);
+      if (data) return data as Review;
+    } else {
+      const { data, error } = await supabase
+        .from('reviews')
+        .update({ is_featured, updated_at: new Date().toISOString() })
+        .eq('order_number', identifier)
+        .select()
+        .single();
+      if (error) console.warn('Aviso actualizando destacado de reseña en Supabase por Orden:', error.message);
+      if (data) return data as Review;
+    }
+  } catch (err: any) {
+    console.warn('Advertencia actualizando destacado de reseña en Supabase:', err);
+  }
+  return updatedItem || ({ id: identifier, is_featured } as any);
 }
 
 export async function deleteReview(identifier: string): Promise<void> {
