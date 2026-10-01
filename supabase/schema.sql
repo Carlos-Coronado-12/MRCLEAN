@@ -360,6 +360,7 @@ CREATE TABLE IF NOT EXISTS public.reviews (
   order_number TEXT NOT NULL,
   customer_name TEXT NOT NULL,
   customer_phone TEXT,
+  service_name TEXT,
   rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
   comment TEXT,
   service_aspects TEXT[] DEFAULT '{}',
@@ -370,8 +371,9 @@ CREATE TABLE IF NOT EXISTS public.reviews (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Si la tabla ya existe, asegurar la columna is_featured:
+-- Si la tabla ya existe, asegurar las columnas adicionales:
 ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS service_name TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_reviews_order_id ON public.reviews(order_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_order_number ON public.reviews(order_number);

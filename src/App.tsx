@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { ClientOrderView } from './pages/ClientOrderView';
 import { SchedulePickupPage } from './pages/SchedulePickupPage';
+import { PastReviewPage } from './pages/PastReviewPage';
 import { LoginPage } from './pages/LoginPage';
 import { supabase, isDemoMode } from './lib/supabaseClient';
 
@@ -60,6 +61,11 @@ export const App: React.FC = () => {
         {/* Rutas públicas del cliente (NO requieren login) */}
         <Route path="/pedido/:token" element={<ClientOrderView />} />
         <Route path="/resena/:token" element={<ClientOrderView />} />
+        <Route path="/dejar-resena" element={<PastReviewPage />} />
+        <Route path="/resena" element={<PastReviewPage />} />
+        <Route path="/opinar" element={<PastReviewPage />} />
+        <Route path="/calificar" element={<PastReviewPage />} />
+        <Route path="/opinion" element={<PastReviewPage />} />
         <Route path="/agendar" element={<SchedulePickupPage />} />
         <Route path="/colecta" element={<SchedulePickupPage />} />
 

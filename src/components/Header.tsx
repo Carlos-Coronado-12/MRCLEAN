@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Crown, LogOut, Settings, ShieldCheck, Database, UserCheck, Package, Instagram, Camera, Star } from 'lucide-react';
+import { Sparkles, Crown, LogOut, Settings, ShieldCheck, Database, UserCheck, Package, Instagram, Camera, Star, Bot, Smile } from 'lucide-react';
 import { isDemoMode } from '../lib/supabaseClient';
 
 interface HeaderProps {
@@ -10,6 +10,7 @@ interface HeaderProps {
   onOpenPortfolio?: () => void;
   onOpenPickups?: () => void;
   onOpenReviews?: () => void;
+  onOpenMascot?: () => void;
   pendingPickupsCount?: number;
   onLogout?: () => void;
   isLoggedIn?: boolean;
@@ -23,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenPortfolio,
   onOpenPickups,
   onOpenReviews,
+  onOpenMascot,
   pendingPickupsCount = 0,
   onLogout, 
   isLoggedIn = true 
@@ -65,6 +67,17 @@ export const Header: React.FC<HeaderProps> = ({
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                 Supabase En Vivo
               </span>
+            )}
+
+            {isLoggedIn && onOpenMascot && (
+              <button
+                onClick={onOpenMascot}
+                className="p-2 sm:px-3 sm:py-2 text-slate-200 hover:text-amber-300 bg-gradient-to-r from-amber-950/40 via-gold-950/40 to-dark-900 hover:bg-gold-500/10 rounded-xl border border-gold-500/30 hover:border-gold-500/60 transition-all flex items-center gap-1.5 text-xs font-bold whitespace-nowrap shrink-0 shadow-sm"
+                title="Estudio y Control de la Mascota Interactiva 3D"
+              >
+                <Smile className="w-4 h-4 text-gold-400 shrink-0" />
+                <span className="hidden md:inline">Mascota 3D</span>
+              </button>
             )}
 
             {isLoggedIn && onOpenPickups && (

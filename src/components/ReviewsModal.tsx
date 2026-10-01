@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Review } from '../types/database';
-import { fetchReviews, toggleReviewPublished, toggleReviewFeatured, deleteReview } from '../services/orderService';
+import { fetchReviews, toggleReviewPublished, toggleReviewFeatured, deleteReview, generatePastReviewWhatsAppShareLink } from '../services/orderService';
+import { WhatsAppIcon } from './WhatsAppIcon';
 import {
   X, Star, MessageSquare, ThumbsUp, Trash2, Eye, EyeOff, Search,
-  Award, Sparkles, Filter, CheckCircle2, User, Phone, Calendar
+  Award, Sparkles, Filter, CheckCircle2, User, Phone, Calendar,
+  Copy, Check, ExternalLink, Link2, Share2, Tag
 } from 'lucide-react';
 
 interface ReviewsModalProps {
@@ -23,12 +25,26 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
   const [ratingFilter, setRatingFilter] = useState<number | 'all'>('all');
   const [filterPublished, setFilterPublished] = useState<'all' | 'published' | 'hidden'>('all');
   const [filterFeatured, setFilterFeatured] = useState<'all' | 'featured'>('all');
+  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       loadReviews();
     }
   }, [isOpen]);
+
+  const pastReviewUrl = `${window.location.origin}/dejar-resena`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(pastReviewUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleShareWhatsApp = () => {
+    const waUrl = generatePastReviewWhatsAppShareLink(pastReviewUrl);
+    window.open(waUrl, '_blank');
+  };
 
   const loadReviews = async () => {
     setLoading(true);
@@ -216,6 +232,69 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
 
           </div>
 
+          {/* Link para Reseñas Pasadas & Clientes Anteriores */}
+          <div className="bg-gradient-to-r from-gold-500/10 via-dark-950 to-dark-950 border border-gold-500/30 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-gold-glow-sm">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-gold-400 animate-ping" />
+                <h3 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+                  <Link2 className="w-4 h-4 text-gold-400" />
+                  Link para Recopilar Reseñas Pasadas
+                </h3>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Pide únicamente su nombre y servicio realizado. Ideal para enviar a clientes anteriores por WhatsApp.
+              </p>
+              <div className="pt-0.5 flex items-center gap-2 text-[10px] text-gold-400/90 font-mono">
+                <span>{pastReviewUrl}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto shrink-0 flex-wrap sm:flex-nowrap">
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  copiedLink
+                    ? 'bg-emerald-500 text-white shadow-emerald-glow-sm'
+                    : 'bg-gold-500 hover:bg-gold-400 text-black shadow-gold-glow-sm'
+                }`}
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    <span>¡Enlace Copiado!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copiar Enlace</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleShareWhatsApp}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5"
+                title="Compartir plantilla de invitación por WhatsApp"
+              >
+                <WhatsAppIcon className="w-4 h-4 fill-emerald-400" />
+                <span>WhatsApp</span>
+              </button>
+
+              <a
+                href="/dejar-resena"
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 rounded-xl bg-dark-800 hover:bg-dark-700 text-slate-300 hover:text-white border border-dark-700 text-xs transition-colors"
+                title="Abrir formulario en nueva pestaña"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+
           {/* Filters Bar */}
           <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
             <div className="relative w-full sm:w-72">
@@ -300,6 +379,17 @@ export const ReviewsModal: React.FC<ReviewsModalProps> = ({
                           <span className="text-[10px] font-mono bg-dark-900 border border-dark-700 px-2 py-0.5 rounded text-gold-400 font-bold">
                             #{review.order_number}
                           </span>
+                          {review.service_name && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/25 flex items-center gap-1">
+                              <Sparkles className="w-2.5 h-2.5 text-amber-400" />
+                              {review.service_name}
+                            </span>
+                          )}
+                          {review.order_number.startsWith('HIST-') && (
+                            <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                              Reseña Directa
+                            </span>
+                          )}
                           {review.is_featured && (
                             <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-gold-500/20 text-gold-300 border border-gold-500/30 flex items-center gap-1">
                               <Star className="w-2.5 h-2.5 fill-gold-400 text-gold-400" />

@@ -1769,6 +1769,7 @@ export async function createReview(
   const newReview: Review = {
     ...reviewData,
     id: fallbackId,
+    service_name: reviewData.service_name || undefined,
     service_aspects: reviewData.service_aspects || [],
     would_recommend: reviewData.would_recommend !== false,
     is_published: reviewData.is_published !== false,
@@ -1781,7 +1782,7 @@ export async function createReview(
   const localItems = getLocalReviews();
   const existingIdx = localItems.findIndex(
     r => (reviewData.order_id && r.order_id === reviewData.order_id) || 
-         (reviewData.order_number && r.order_number === reviewData.order_number)
+         (reviewData.order_number && r.order_number === reviewData.order_number && !reviewData.order_number.startsWith('HIST-'))
   );
   if (existingIdx !== -1) {
     localItems[existingIdx] = { ...localItems[existingIdx], ...newReview, id: localItems[existingIdx].id || fallbackId };
@@ -1799,6 +1800,7 @@ export async function createReview(
       order_number: reviewData.order_number,
       customer_name: reviewData.customer_name,
       customer_phone: reviewData.customer_phone || null,
+      service_name: reviewData.service_name || null,
       rating: reviewData.rating,
       comment: reviewData.comment || null,
       service_aspects: reviewData.service_aspects || [],
@@ -1811,17 +1813,29 @@ export async function createReview(
       payload.order_id = reviewData.order_id;
     }
 
-    const { data, error } = await supabase
+    let insertResult = await supabase
       .from('reviews')
       .insert([payload])
       .select()
       .single();
 
-    if (error) throw error;
+    // Si falló por falta de la columna service_name, reintentar sin ella
+    if (insertResult.error && insertResult.error.message?.includes('service_name')) {
+      delete payload.service_name;
+      insertResult = await supabase
+        .from('reviews')
+        .insert([payload])
+        .select()
+        .single();
+    }
+
+    if (insertResult.error) throw insertResult.error;
+    const data = insertResult.data;
+
     if (data?.id) {
       // Actualizar ID local con el ID de Supabase
       const updatedLocal = getLocalReviews().map(r => 
-        r.order_number === reviewData.order_number ? { ...r, id: data.id } : r
+        (r.id === fallbackId || r.order_number === reviewData.order_number) ? { ...r, id: data.id } : r
       );
       saveLocalReviews(updatedLocal);
     }
@@ -1830,6 +1844,17 @@ export async function createReview(
     console.warn('Aviso al insertar reseña en Supabase (se guardó copia local):', err);
     return newReview;
   }
+}
+
+export function generatePastReviewWhatsAppShareLink(customUrl?: string, customPhone?: string): string {
+  const url = customUrl || `${window.location.origin}/dejar-resena`;
+  const text = `¡Hola! 👋✨ En *Mr. Clean Sneakers* queremos agradecerte por confiar en nosotros para el cuidado de tu calzado.\n\nNos encantaría conocer tu experiencia. ¿Nos podrías regalar una breve reseña de 30 segundos? Sólo te pedirá tu nombre y el servicio realizado:\n👉 ${url}\n\n¡Muchas gracias por tu apoyo! ⭐👟`;
+  
+  if (customPhone) {
+    const cleanPhone = customPhone.replace(/[^0-9]/g, '');
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`;
+  }
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
 export async function toggleReviewPublished(identifier: string, is_published: boolean): Promise<Review> {

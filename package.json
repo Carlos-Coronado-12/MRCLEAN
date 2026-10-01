@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@bible-strong/avatar-react": "^0.1.0",
     "@supabase/supabase-js": "^2.45.4",
     "canvas-confetti": "^1.9.4",
     "clsx": "^2.1.1",

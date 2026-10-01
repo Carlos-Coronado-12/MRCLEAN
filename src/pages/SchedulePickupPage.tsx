@@ -1108,7 +1108,7 @@ export const SchedulePickupPage: React.FC = () => {
                           <div>
                             <p className="text-xs font-bold text-white leading-tight">{rev.customer_name}</p>
                             <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
-                              <CheckCircle2 className="w-2.5 h-2.5" /> Cliente Verificado
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Cliente Verificado {rev.service_name ? `• ${rev.service_name}` : ''}
                             </span>
                           </div>
                         </div>

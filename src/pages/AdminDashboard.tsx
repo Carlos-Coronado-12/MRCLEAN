@@ -12,10 +12,12 @@ import { PromotionsModal } from '../components/PromotionsModal';
 import { PickupRequestsModal } from '../components/PickupRequestsModal';
 import { PortfolioModal } from '../components/PortfolioModal';
 import { ReviewsModal } from '../components/ReviewsModal';
+import { MascotModal } from '../components/MascotModal';
+import { MascotWidget } from '../components/MascotWidget';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import {
   Search, Plus, RefreshCw, Copy, Check, QrCode, ExternalLink, DollarSign,
-  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp, UserCheck, Trash2, Instagram, Camera, Star
+  Package, Clock, CheckCircle2, AlertCircle, Eye, Edit3, Filter, Sparkles, TrendingUp, UserCheck, Trash2, Instagram, Camera, Star, Smile
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
@@ -37,6 +39,7 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
   const [isPromotionsOpen, setIsPromotionsOpen] = useState(false);
   const [isPortfolioOpen, setIsPortfolioOpen] = useState(false);
   const [isReviewsOpen, setIsReviewsOpen] = useState(false);
+  const [isMascotOpen, setIsMascotOpen] = useState(false);
   const [isPickupsOpen, setIsPickupsOpen] = useState(false);
   const [pendingPickupsCount, setPendingPickupsCount] = useState(0);
 
@@ -142,6 +145,7 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
         onOpenPromotions={() => setIsPromotionsOpen(true)}
         onOpenPortfolio={() => setIsPortfolioOpen(true)}
         onOpenReviews={() => setIsReviewsOpen(true)}
+        onOpenMascot={() => setIsMascotOpen(true)}
         onOpenPickups={() => setIsPickupsOpen(true)}
         pendingPickupsCount={pendingPickupsCount}
         onLogout={onLogout}
@@ -594,6 +598,21 @@ export const AdminDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout })
         <ReviewsModal
           isOpen={isReviewsOpen}
           onClose={() => setIsReviewsOpen(false)}
+        />
+      )}
+
+      {/* Floating Interactive 3D Mascot Widget */}
+      <MascotWidget
+        onOpenStudio={() => setIsMascotOpen(true)}
+        pendingPickupsCount={pendingPickupsCount}
+        inProgressOrdersCount={inProgressCount}
+      />
+
+      {/* Full 3D Mascot Studio & Controller Modal */}
+      {isMascotOpen && (
+        <MascotModal
+          isOpen={isMascotOpen}
+          onClose={() => setIsMascotOpen(false)}
         />
       )}
 

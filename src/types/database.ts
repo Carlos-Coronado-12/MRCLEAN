@@ -124,6 +124,7 @@ export interface Review {
   order_number: string;
   customer_name: string;
   customer_phone?: string;
+  service_name?: string;
   rating: number; // 1 to 5
   comment?: string | null;
   service_aspects?: string[];
